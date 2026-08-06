@@ -80,8 +80,9 @@ controller may be deployed in either topology:
 
 Both topologies implement the same management root, resource representations, authorization
 decisions, revision rules, operation/idempotency behavior, error codes, event ordering, cursor
-replay, and session-authority propagation. A Studio client must not branch product behavior on the
-topology. The topology is discoverable for diagnostics and operator planning only.
+replay, session-authority propagation, and cross-Fleet-transfer boundary. A Studio client must not
+branch product behavior on the topology. The topology is discoverable for diagnostics and operator
+planning only.
 
 An embedded controller must not silently elect another OpenAB instance when its host is unavailable.
 A dedicated controller may have an implementation-specific high-availability deployment, but
@@ -233,13 +234,29 @@ fingerprint returns idempotency_key_reused. Discovery advertises the minimum ret
 client retains its clientMutationId and operation ID longer so it can query the operation after that
 interval.
 
-An OpenAB instance already owned by another Fleet is rejected. Moving it is the only transition
-between owners and is an audited compound operation with source and destination preconditions. It
-must preflight identity, resource, and provider conflicts; revoke source-Fleet authority; invalidate
-Fleet-scoped caches and session bindings; issue destination authority before activation; and report
-provider/resource migration outcomes separately from the ownership change. It never creates a
-moment of simultaneous ownership or silently copies Fleet-owned resources, grants, memory, or audit
-history.
+### Cross-Fleet transfer is deferred
+
+V1alpha1 does not define a cross-controller Fleet transfer protocol. The instances:enroll operation
+accepts only a truly unassigned OpenAB instance: at acceptance, the controller must verify
+atomically against the durable ownership authority that the instance has no owning Fleet. The
+expectedOwnerFleetId value of null is a precondition for initial enrollment, not a transfer
+authorization.
+
+If the instance is already owned by any Fleet, instances:enroll returns the stable
+transfer_protocol_required error. Studio MUST NOT simulate a move by chaining independent source
+detach/unenroll and destination enroll mutations, whether directly, through a retry queue, or in
+background recovery. A client crash, replay, source-controller failure, or destination-controller
+failure during such a chain could otherwise lose ownership or leave authority ambiguous.
+
+The later, explicit cross-Fleet transfer contract must preserve the accepted move invariants:
+
+- it never creates simultaneous ownership;
+- it preflights identity, resource, and provider conflicts;
+- it revokes source-Fleet authority and invalidates source-Fleet caches and session bindings;
+- it issues destination-Fleet authority before activating the instance there;
+- it records an audited, recoverable intermediate state rather than hiding a partial transfer; and
+- it reports provider/resource migration outcomes separately from the ownership transition and never
+  silently copies Fleet-owned resources, grants, memory, or audit history.
 
 ## Events, cursors, and resynchronization
 
@@ -324,7 +341,8 @@ or resynchronization is required.
 |---:|---|---|
 | 401 | unauthenticated or credential_revoked | Do not retry with the same credential. Reauthenticate; a revoked device also clears the Fleet from active UI state. |
 | 403 | authorization_denied or grant_revoked | Do not reveal or reconstruct hidden resource data. Refresh authorized state after the next cursor/snapshot. |
-| 409 | instance_already_owned or idempotency_key_reused | Show the owner/mutation conflict only to an authorized administrator; never convert it to a local overwrite. |
+| 409 | transfer_protocol_required | Do not call an independent source detach/unenroll or destination enroll. Preserve the visible current state and require the later transfer protocol. |
+| 409 | idempotency_key_reused | Retain the original operation state; generate a new key only for a new user intent after explicit review. |
 | 412 | revision_conflict | Fetch the current representation, retain the pending user intent, and require explicit resolution. |
 | 428 | precondition_required | Retry only after attaching the required current revision or create precondition. |
 | 410 | cursor_expired | Fetch the supplied authorized snapshot and resume from its cursor. |
@@ -427,6 +445,12 @@ billing, or Studio UI. They define the OpenAB-instance-facing half of the shared
 contract. Each resulting OpenAB issue and PR must link back to this ADR and its paired Studio
 consumer issue before the relevant P3 work is considered unblocked.
 
+### Deferred Studio decision: Cross-Fleet Transfer Protocol
+
+| Owner | Issue-ready decision/follow-up | Scope | Required failure and retry proof |
+|---|---|---|---|
+| W0/W2 maintainer; root coordination creates and links the issue | **Fleet Management: define cross-Fleet transfer protocol** | Choose the coordinator, transfer authorization/receipt, operation endpoint, durable state model, and recovery authority for moving an OpenAB instance between independently authoritative Fleet controllers. It must implement the deferred invariants above and identify any paired OpenAB participant work. | Inject a client crash/replay, source or destination controller loss, duplicate idempotency retry, and controller restart at every transfer boundary. Prove exactly one owner, no unbounded source or destination authority, a durable queryable recovery state, and explicit provider/resource migration outcomes. |
+
 ## Consequences
 
 - Studio has one durable contract for fleet state and can provide the same management functionality
@@ -445,6 +469,7 @@ consumer issue before the relevant P3 work is considered unblocked.
 - Implementing a controller, controller store, OpenAB participant, or Studio client.
 - Selecting controller hosting, high-availability vendor, tenancy, billing, or marketplace policy.
 - Defining identity-provider federation, token encoding, proof-of-possession, or key rotation.
+- Defining or implementing the deferred cross-controller Fleet transfer protocol.
 - Replacing ACP session traffic or making ACP a Fleet inventory/authorization protocol.
 - Replacing MCP or making MCP a Fleet-management mutation bypass.
 - Defining transcript synchronization, plugin package signing, memory-provider data migration, or
@@ -458,6 +483,8 @@ consumer issue before the relevant P3 work is considered unblocked.
   discoverable diagnostic topology.
 - Offline retry, reconnect, cursor expiry, credential/grant revocation, and controller loss have
   explicit client and OpenAB-instance behavior without silent last-write-wins.
+- V1alpha1 enrollment accepts only unassigned instances; cross-Fleet moves require the deferred,
+  coordinated transfer protocol and cannot be composed from independent mutations.
 - ACP session authority is distinct from the ACP transport bearer, and MCP remains a plugin data
   plane.
 - The paired OpenAB dependency map names the instance work that must land before shared-Fleet
@@ -467,5 +494,6 @@ consumer issue before the relevant P3 work is considered unblocked.
 
 The next accepted contracts must define shared schema/compatibility policy, identity federation and
 credential formats, controller persistence/failover guarantees, exact audit retention/redaction
-requirements, and the concrete OpenAB participant wire protocol. Those decisions may refine this
-profile only if they preserve the management-plane boundary and the safety behavior above.
+requirements, the concrete OpenAB participant wire protocol, and the deferred cross-Fleet transfer
+protocol. Those decisions may refine this profile only if they preserve the management-plane boundary
+and the safety behavior above.

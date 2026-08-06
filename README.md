@@ -2,114 +2,61 @@
 
 - **Status:** Planning
 - **Last updated:** 2026-08-07
-- **Architecture:** [Remote-first client ADR](./docs/adr/remote-first-client.md)
-- **Delivery plan:** [OpenAB Studio roadmap](./ROADMAP.md)
-- **Server contract:** [ACP-over-WebSocket base ADR](https://github.com/openabdev/openab/blob/main/docs/adr/acp-server-websocket-base.md)
+- **Architecture:** [System architecture](./docs/architecture.md)
+- **Client decision:** [Cross-platform remote-first client ADR](./docs/adr/remote-first-client.md)
+- **Plugin decision:** [Plugin platform ADR](./docs/adr/plugin-platform.md)
+- **Delivery:** [Roadmap](./ROADMAP.md) · [Workstreams](./docs/workstreams.md) · [Project management](./docs/project-management.md)
 
-## Product definition
+OpenAB Studio is a cross-platform control surface and plugin playground for one or more fleets of
+OpenAB instances. It manages connections, agents, resources, grants, memory, plugins, and audit
+history while using ACP-over-WebSocket for interactive agent sessions.
 
-OpenAB Studio is a cross-platform client for working with an OpenAB instance. The instance may run
-on the same machine, on a private server, or as a managed remote deployment. The app is a surface
-over OpenAB, not the owner of the agent runtime.
+Studio is not the OpenAB runtime. An OpenAB instance may be local, private, or managed remotely.
+The first releases connect to existing instances; installing and provisioning instances is a later
+plugin-driven capability.
 
-The first product target is one client experience shared by:
+## Product target
 
-- a browser-hosted web app;
-- a desktop shell for macOS, Windows, and Linux; and
-- later clients that reuse the same ACP client library.
+The target surfaces are macOS, Windows, Linux, iPadOS, iOS, Android tablets, and Android phones.
+Delivery is staged, but mobile is a full management surface rather than a read-only companion.
+Platform constraints affect where code can execute, not which fleets a user can manage.
 
-The app connects to OpenAB through ACP over WebSocket. It may also expose explicitly granted
-client-side capabilities through MCP-over-ACP, but those capabilities are optional and are not part
-of the first chat milestone.
-
-## Why this can start now
-
-The server already provides the minimum transport needed for a reference client:
-
-- authenticated `GET /acp` WebSocket connections;
-- ACP `initialize`, `session/new`, `session/resume`, `session/prompt`, and `session/cancel`;
-- reconnect-to-resume without server-side transcript replay; and
-- reverse MCP-over-ACP for a client that acts as an MCP server.
-
-This is enough to prove connection management, chat, local transcript ownership, and session
-resume. It is not yet enough to claim a production multi-user remote service or a fine-grained
-native capability host. Those boundaries are explicit in the roadmap.
+The browser-hosted Web App is paused. Shared UI code may remain portable, but Web distribution is
+not part of the active roadmap.
 
 ## Product principles
 
-1. **Remote first, local compatible.** Local OpenAB is one connection profile, not a separate
-   architecture. The app does not bundle or own the OpenAB core by default.
-2. **Web UI first.** Browser and desktop render the same application and consume the same typed ACP
-   client package. Platform integrations sit behind a narrow host interface.
-3. **Protocol before product coupling.** The app negotiates ACP capabilities and does not depend on
-   OpenAB implementation details that are absent from the wire contract.
-4. **The client owns presentation state.** Until `session/load` exists, the app retains the
-   transcript and treats `session/resume` as context continuation without history replay.
-5. **Capabilities are grants, not conveniences.** Files, terminal, browser, clipboard, and similar
-   host access stay unavailable until the user has granted an understandable scope.
-6. **Honest controls.** A UI action must not imply stronger behavior than the server provides. For
-   example, the current cancel path stops the ACP waiter but may not stop downstream agent work.
-7. **One agent per ACP session.** A multi-agent room, if added, is client orchestration over several
-   independent sessions rather than server-side answer aggregation.
+1. **Remote first, local compatible.** Local and remote OpenAB instances use the same contracts.
+2. **Multi-fleet from the data model.** Fleet identity is not retrofitted onto a single-instance app.
+3. **Two protocol planes.** Management uses a durable Fleet Management API; live sessions use ACP
+   over WebSocket. MCP is the plugin tool/data plane, not the entire management model.
+4. **Kernel core-first, features plugin-first.** Identity, policy, secrets, lifecycle, storage, audit,
+   and protocol negotiation belong to the trusted core. Integrations and domain features should use
+   the same public Plugin SDK available to third parties.
+5. **Capabilities are grants.** Agent access to resources, memory, plugins, and device functions is
+   explicit, scoped, revocable, and auditable.
+6. **Management parity, adaptive execution.** Phones and tablets can perform complete fleet
+   management. Arbitrary local executables remain desktop-only; mobile manages remote plugins and
+   instance-hosted capabilities.
+7. **Dogfood the public seams.** First-party integrations must not rely on private APIs unavailable
+   to external plugin authors.
 
-## Initial user journeys
+## Initial product slices
 
-### Connect to an OpenAB instance
+- Register existing OpenAB instances and organize them into fleets.
+- Connect to an agent through ACP-over-WebSocket, with honest reconnect and resume semantics.
+- Inspect agents, resources, grants, plugins, memory, and audit events across a fleet.
+- Install a low-risk `echo` plugin through the public plugin lifecycle.
+- Dogfood a `studio-dev` plugin that exposes read-only repository, pull request, and CI information.
+- Ship verified desktop builds before expanding the same management model to tablets and phones.
 
-The user creates a connection profile with a display name, a `wss://` endpoint, and credentials.
-Secrets are stored by the platform credential service in the desktop app and are never written into
-the transcript or diagnostic export.
+## Repository boundary
 
-### Start and resume work
+This repository owns the Studio product, trusted client core, UI, device shells, Plugin SDK, and
+Studio-side contracts. Changes to the OpenAB instance runtime or its protocol implementation belong
+in the [OpenAB repository](https://github.com/openabdev/openab). A cross-repository feature should
+have one tracking issue per repository and an explicit dependency between them.
 
-The user opens a conversation, the app creates an ACP session, and the app stores the returned
-`sessionId` with the connection profile. After reconnecting, the app calls `session/resume` and
-continues the session without expecting OpenAB to replay prior messages.
-
-### Work from browser or desktop
-
-The web and desktop surfaces share conversation, connection, and protocol behavior. Desktop-only
-features such as native notifications, credential storage, deep links, and later client-side tools
-are provided through a host adapter instead of leaking into the core UI.
-
-### Expose a client capability
-
-In a later milestone, the user enables a capability provider for a session. The client declares it
-as a `type:acp` MCP server and serves its tools over the existing WebSocket. High-impact providers
-must wait for a real permission broker; the current OpenAB auto-approval behavior is not sufficient
-for a general file or terminal provider.
-
-## Surface boundaries
-
-| Concern | Web app | Desktop app | OpenAB server |
-|---|---|---|---|
-| ACP client state machine | Shared TypeScript package | Shared TypeScript package | ACP server |
-| Conversation UI | Yes | Same UI | No |
-| Transcript display store | Browser storage initially | Desktop app data store | No replay store today |
-| Credential storage | Browser-session constraints | OS credential service | Validates transport credential |
-| Local files / terminal | Browser sandbox only | Future host capability | Routes granted MCP calls |
-| Agent process and workspace | No | No, by default | Yes |
-| Identity and policy | Presents user/session identity | Presents user/session identity | Must enforce it before public remote use |
-
-## Reference projects
-
-These projects inform the product shape, not the OpenAB wire contract:
-
-- [KiroCrew](https://github.com/kirodotdev/KiroCrew) demonstrates one Web UI used from a browser
-  and desktop shell, with connections to local or remote gateways. Its desktop app bundles and
-  supervises a backend; OpenAB Studio deliberately does not make that the default because remote
-  OpenAB remains a first-class deployment.
-- [qm](https://github.com/yc-software/qm) demonstrates a headless core with optional UI surfaces
-  and strong separation between runtime, persistence, identity, and presentation. OpenAB Studio keeps
-  the same separation while using ACP-over-WebSocket as its session protocol.
-
-## Success definition for the first release
-
-The first release is successful when a user on macOS, Windows, or Linux can install the app,
-connect to a private local or remote OpenAB endpoint, start a conversation, reconnect and resume it,
-cancel the client-side wait, and understand the actual connection/session state without using a
-platform-specific chat adapter.
-
-Public multi-user hosting, native host tools, automatic local-core installation, and multi-agent
-rooms are later scopes. Their prerequisites and exit criteria live in the roadmap rather than this
-stable product definition.
+GitHub Issues are the live source of task status once execution starts. These documents define the
+accepted direction, boundaries, milestone exit criteria, and task decomposition; they are not a
+substitute for the tracker.

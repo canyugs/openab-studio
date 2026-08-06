@@ -2,256 +2,215 @@
 
 - **Status:** Living delivery plan
 - **Last updated:** 2026-08-07
-- **Product brief:** [OpenAB Studio](./README.md)
-- **Architecture proposal:** [Remote-first client ADR](./docs/adr/remote-first-client.md)
+- **Architecture:** [System architecture](./docs/architecture.md)
+- **Execution model:** [Workstreams](./docs/workstreams.md)
+- **Tracker rules:** [Project management](./docs/project-management.md)
 
-This document converts the OpenAB Studio direction into independently shippable milestones. Unlike the
-architecture ADR, this file is expected to change as protocol support and product evidence change.
-Dates, owners, and issue links should be added only after maintainers commit to them.
+This roadmap orders accepted capabilities; it does not promise dates. Every phase must produce a
+usable vertical slice, evidence for every claimed platform, and independently reviewable tasks.
 
-## Current server baseline
+## Current OpenAB instance baseline
 
-Baseline inspected at OpenAB `main` commit `3ace7de3` and rechecked on 2026-08-07:
+Baseline rechecked against OpenAB `main` commit `3ace7de3` on 2026-08-07. The latest local release tag
+is `v0.10.0-beta.2`; reverse MCP-over-ACP exists on `main` and should not be assumed available in that
+release without a later tagged build.
 
-The base ACP chat surface is included in `openab-0.10.0-beta.2`. Reverse MCP-over-ACP is present on
-`main` through `3ace7de3` but is not part of that OpenAB release; M3 must depend on a later release or
-an explicitly pinned development build.
-
-| Server capability | Current state | App implication |
+| Capability | Current state | Planning effect |
 |---|---|---|
-| `/acp` WebSocket + transport auth | Available | Reference client can connect now |
-| `initialize` and capability negotiation | Available | Feature-gate from negotiated capabilities |
-| `session/new`, `session/prompt` | Available | Basic chat can ship |
-| `session/resume` | Available, no history replay | Client owns transcript |
-| `session/cancel` | Partial; backend may continue | UI says client wait cancelled, not agent stopped |
-| Progressive message streaming | Not available | Render one terminal text chunk correctly first |
-| Structured tool-call updates | Not available | Do not parse tool chips from decorated text |
-| Reverse MCP-over-ACP | Available | Capability-host work can begin behind a gate |
-| Permission relay | Not available; current tool approval is automatic | Do not expose general high-risk native tools |
-| Hosted per-user ACP identity | Not available | Remote preview is private/single-user only |
-| `session/load` / server transcript | Not available | No cross-device history claim |
+| Authenticated `GET /acp` WebSocket | Available | Studio ACP vertical slice can start |
+| `initialize`, new, prompt, resume | Available | Resume continues context but does not replay history |
+| Cancel | Partial downstream semantics | UI must not claim the agent stopped |
+| Reverse MCP-over-ACP | On current `main` | Suitable for gated low-risk capability experiments |
+| Fine-grained permission relay | Not available | General native tools remain blocked on grant design |
+| Fleet Management API/controller | Not available as the Studio contract | W2 must design and implement the management plane |
+| Multi-user fleet identity/RBAC | Not available | Shared fleets remain gated by P3 |
+| Durable cross-device history | Not available | Do not claim transcript synchronization |
 
-The baseline must be refreshed before starting a milestone that depends on server behavior.
+This table records a dependency baseline, not ownership: OpenAB instance changes remain in the OpenAB
+repository, while Studio consumes versioned capabilities. Recheck it at every phase boundary.
 
-## Milestone overview
+## Delivery sequence
 
 ```mermaid
 flowchart LR
-    M0["M0 Web reference client"] --> M1["M1 Desktop private preview"]
-    M1 --> M2["M2 Production remote trust"]
-    M2 --> M3["M3 Client capability host"]
-    M1 --> M4["M4 Rich ACP experience"]
-    M3 --> M5["M5 Local-runtime option and broader surfaces"]
-    M4 --> M5
+    P0["P0 Contracts"] --> P1["P1 Trust kernel"]
+    P1 --> P2["P2 Desktop dogfood"]
+    P2 --> P3["P3 Shared fleet governance"]
+    P3 --> P4["P4 Memory management"]
+    P3 --> P5["P5 Tablets"]
+    P5 --> P6["P6 Phones"]
+    P2 --> P7["P7 Plugin ecosystem"]
+    P4 --> P7
 ```
 
-M2 is the gate for public remote distribution. M3 and M4 may be developed in parallel after M1,
-but high-risk capabilities cannot be enabled for users before the M2 identity boundary and a
-permission/grant contract exist.
+P4 and P5 may run in parallel after P3 stabilizes. P7 starts with internal distribution during P2
+and expands to a public ecosystem only after permissions, compatibility, and recovery are proven.
 
-## M0 — Web reference client
+## P0 — Contracts and foundation
 
-### Goal
+**Goal:** freeze enough vocabulary and seams for parallel implementation without freezing product
+learning.
 
-Prove the OpenAB ACP client contract in the least privileged environment before desktop packaging.
+Scope:
 
-### Scope
+- Accept the client, plugin, and fleet architecture ADRs.
+- Define versioned schemas for fleet identity, instance descriptors, principals, resources, grants,
+  memory references, plugin manifests, capabilities, and audit events.
+- Bootstrap the Rust core, TypeScript UI, generated bindings, Tauri shells, and contract tests.
+- Run build spikes for macOS, Windows, Linux, iOS/iPadOS, and Android before choosing release tiers.
+- Define threat model, secret storage boundary, migration policy, and telemetry redaction.
 
-- TypeScript JSON-RPC and ACP client state machine.
-- Connection form for a development or private endpoint.
-- Browser WebSocket auth using `openab.bearer.<token>, acp.v1`.
-- `initialize`, capability capture, `session/new`, `session/prompt`, and `session/cancel`.
-- Local transcript with explicit export and clear controls.
-- Reconnect with bounded backoff and `session/resume`.
-- Redacted protocol diagnostics.
-- Markdown rendering with untrusted HTML disabled or sanitized.
+Exit criteria:
 
-### Exit criteria
+- The `echo` plugin manifest can be validated without running the plugin.
+- One fixture drives both Rust and TypeScript schema compatibility tests.
+- CI produces development artifacts or a documented blocker for every target family.
+- No feature work depends on an undefined identity, placement, permission, or state owner.
 
-- A browser test drives a real OpenAB deployment through one complete turn.
-- Disconnect/reconnect resumes context without duplicating the transcript.
-- Wrong credentials, unsupported protocol, timeout, and oversized/closed socket cases are visible and
-  actionable.
-- Cancelling a turn uses wording that acknowledges backend work may continue.
-- No bearer or full `sessionId` appears in logs or exported diagnostics.
+## P1 — Trust kernel and plugin-host vertical slice
 
-### Explicitly deferred
+**Goal:** build the smallest trustworthy Studio core, then exercise it through the public plugin
+surface.
 
-- Account sign-in and hosted multi-user identity.
-- Native filesystem, terminal, clipboard, or browser control.
-- Structured tool cards fabricated from text.
-- Cross-device transcript sync.
+Scope:
 
-## M1 — Tauri desktop private preview
+- Rust `studio-core` for storage, migrations, profiles, fleet registry, transport, grants, secrets,
+  plugin lifecycle, audit, and capability negotiation.
+- TypeScript UI for fleet navigation, connection health, and explicit error states.
+- ACP-over-WebSocket connection and one complete session turn against an existing OpenAB instance.
+- Plugin install, validate, enable, disable, upgrade, rollback, and uninstall state machine.
+- Sandboxed or remote `echo` plugin with one scoped tool and redacted audit events.
 
-### Goal
+Exit criteria:
 
-Package the reference client for macOS, Windows, and Linux without changing the ACP behavior.
+- A clean install can register an existing instance, create a session, reconnect, and resume.
+- An unauthorized plugin call is denied by the core, not only hidden by the UI.
+- Plugin failure cannot corrupt the registry or prevent Studio from starting in safe mode.
+- Credentials and secret values are absent from logs, exports, and plugin-visible configuration.
 
-### Scope
+## P2 — Personal multi-fleet desktop dogfood
 
-- Tauri 2 shell loading the shared app UI.
-- Typed `HostBridge` with a restrictive browser implementation.
-- Connection profiles and OS credential storage.
-- App data directory for transcripts and non-secret settings.
-- Deep links, external URL opening, native notifications, and lifecycle handling.
-- Single-instance behavior and safe window restoration.
-- Signing, notarization where applicable, installer artifacts, and a
-  [signed update strategy](https://v2.tauri.app/plugin/updater/).
-- OS/architecture build matrix decided from supported distribution targets.
+**Goal:** make Studio useful every day on macOS, Windows, and Linux for a single operator managing
+multiple fleets and existing instances.
 
-### Exit criteria
+Scope:
 
-- The same ACP client conformance tests pass in browser and desktop transports.
-- Signed or development-signed artifacts install and launch on current supported macOS, Windows, and
-  Linux test machines.
-- Credentials survive restart but are absent from config, transcript, crash, and diagnostic files.
-- The app connects equally to loopback and private remote OpenAB profiles.
-- Removing a profile removes its stored credential after an explicit confirmation.
+- Fleet and instance switcher, health, agents, sessions, resources, grants, and plugin inventory.
+- OS credential stores, deep links, notifications, update channels, diagnostics, and recovery.
+- `studio-dev` plugin using only the public SDK for read-only repository, pull request, and CI data.
+- Desktop local plugin placement for reviewed `mcp-stdio` providers.
+- Installer, signing, update, rollback, and uninstall evidence per operating system.
 
-### Distribution boundary
+Exit criteria:
 
-M1 is a local/private preview. A shared bearer may be used only for a deployment whose users already
-share that trust boundary. It is not a public hosted-client release.
+- The team uses Studio for its own Studio/OpenAB work through the dogfood plugin.
+- Each desktop OS passes install, connect, update, rollback, credential, suspend/resume, and removal
+  checks on documented architectures.
+- Switching fleets cannot leak sessions, resources, grants, memory, or secrets across boundaries.
 
-## M2 — Production remote trust
+## P3 — Shared fleet governance and durable state
 
-### Goal
+**Goal:** support teams and cross-device management without treating an ACP bearer as identity.
 
-Replace bearer possession as user identity before public remote use.
+Scope:
 
-### Server prerequisites
+- Fleet Management API and event stream for instances, agents, resources, grants, plugins, memory
+  metadata, and audit history.
+- Hybrid controller topology: an embedded management endpoint for simple deployments and a dedicated
+  fleet controller for multi-instance fleets.
+- User/device identity, short-lived credentials, revocation, ownership, and optional federation.
+- Fleet Owner/Admin/Member/Viewer roles plus resource-scoped grants.
+- Durable revision IDs, optimistic concurrency, idempotent mutations, and offline conflict handling.
 
-- User-authenticated control-plane session.
-- Short-lived ACP connection ticket or equivalent credential.
-- Ticket audience bound to one OpenAB deployment and intended client.
-- User and client identity propagated to the gateway trust boundary.
-- Session/capability ownership, revocation, and audit.
-- Rate, connection, and resource limits suitable for untrusted clients.
+Exit criteria:
 
-### Client scope
+- Two users and two devices see consistent fleet state and cannot cross each other's grants.
+- Revocation takes effect within a documented bound for management and ACP session authority.
+- Every high-impact mutation has an attributable, redacted audit event.
+- Controller loss and reconnect have tested recovery behavior without silent last-write-wins loss.
 
-- Sign-in and sign-out.
-- Device/session inventory and revocation.
-- Automatic ticket refresh without writing long-lived secrets into WebSocket URLs or logs.
-- Clear separation between endpoint trust, account identity, and conversation state.
-- Recovery for expired or revoked credentials without losing the local transcript.
+## P4 — Memory management
 
-### Exit criteria
+**Goal:** let users inspect and govern memory without requiring Studio to own every memory backend.
 
-- Two users on the same service cannot resume or invoke capabilities for each other's session.
-- Revoking a device prevents new connections and terminates or expires existing authority within the
-  documented bound.
-- Audit records identify user, client, deployment, ACP session, and capability provider without
-  exposing bearer or resume credentials.
-- Threat-model review covers browser origins, desktop deep links, credential theft, replay, and a
-  compromised client-provided MCP server.
+Scope:
 
-## M3 — Client capability host
+- Memory provider SPI and reference model with personal, fleet, and workspace scopes.
+- Provenance, visibility, retention, deletion, export, and provider health.
+- Agent-to-memory grants using the same principal/resource/grant kernel.
+- Search and management UI with clear source-of-truth and synchronization status.
+- First reference provider implemented through the public Plugin SDK.
 
-### Goal
+Exit criteria:
 
-Let the agent use narrowly granted client-side capabilities over MCP-over-ACP.
+- A user can explain where each memory item lives, who may access it, and how deletion propagates.
+- Provider outage or partial deletion is visible and recoverable.
+- Studio caches do not masquerade as authoritative provider state.
 
-### Order of work
+## P5 — Tablet full-management release
 
-1. Implement the capability-host framework with no providers enabled.
-2. Add session-scoped grants, provider status, timeout, cancellation, and redacted audit events.
-3. Prove multi-provider declaration, reconnect, withdrawal-on-resume, and disconnect behavior.
-4. Add one narrowly scoped, low-risk reference provider.
-5. Add browser, file, or terminal providers only through separate reviewed contracts.
+**Goal:** bring complete fleet management to iPadOS and Android tablets with touch-native layouts.
 
-### Server prerequisites
+Scope:
 
-- A permission/grant model whose result reaches the client and is not silently auto-approved for
-  providers that require interactive consent.
-- Session and client identity from M2 for hosted use.
-- Structured errors and reliable provider disconnect behavior.
+- Adaptive navigation and dense management views for touch and keyboard/trackpad use.
+- Secure credential storage, device enrollment, deep links, background reconnect, and notifications.
+- Full remote/instance plugin management and ACP sessions.
+- Device capability negotiation that hides only execution placements unavailable on the device.
 
-### Exit criteria
+Exit criteria:
 
-- A provider cannot be discovered or called outside its owning session and client grant.
-- Reconnect re-declares the complete provider set; omitted providers are withdrawn.
-- A timed-out or cancelled tool releases local resources and late results are ignored.
-- Provider arguments, results, screenshots, and diagnostics obey explicit size limits.
-- Locking or quitting the app revokes or disconnects active client providers.
+- All management mutations available on desktop are available on tablets or explicitly documented as
+  an operating-system restriction with a remote alternative.
+- iPadOS and Android tablet test matrices cover install, upgrade, offline recovery, and revocation.
 
-## M4 — Rich ACP experience
+## P6 — Phone full-management release
 
-### Goal
+**Goal:** preserve complete management capability in workflows designed for small screens and
+intermittent foreground time.
 
-Improve fidelity after the basic client contract is stable.
+Scope:
 
-### Candidate server/client slices
+- Task-focused phone navigation, safe bulk actions, approval flows, and incident triage.
+- Push-assisted event awareness and background lifecycle recovery.
+- Full fleet, grants, memory, plugin, and session management through remote execution placements.
+- Accessibility, one-handed use, interrupted mutation, and low-bandwidth testing.
 
-- Progressive `agent_message_chunk` delivery.
-- Structured `tool_call` and `tool_call_update` events.
-- `agent_thought_chunk`, plan, usage, and available-command updates where supported.
-- Backend-propagating cancellation and an honest `agent stopped` terminal state.
-- Image, audio, and resource content blocks.
-- Session close/list/delete and config/mode controls.
-- `session/load` plus a replayable server transcript, if OpenAB chooses to own that state.
+Exit criteria:
 
-Each slice should be negotiated by capability and independently releasable. The client must retain a
-fallback for older OpenAB versions instead of using server version strings as feature switches.
+- Every management capability has a usable phone flow, not merely a scaled desktop screen.
+- Interrupted or duplicated mobile requests are idempotent and expose their final state.
+- iOS and Android phone release evidence is maintained independently.
 
-### Exit criteria
+## P7 — Public plugin ecosystem and provisioning
 
-- Structured events never need to be reverse-parsed from rendered answer text.
-- Streaming reconnect and duplicate-event behavior are covered by protocol tests.
-- A capability absent from negotiation hides or disables its UI action with an explanation.
+**Goal:** let third parties safely extend Studio and automate fleet operations.
 
-## M5 — Optional local runtime and broader surfaces
+Scope:
 
-### Candidate work
+- Signed packages, publisher identity, private fleet catalogs, and optional public registry.
+- Compatibility resolution, staged rollout, rollback, quarantine, and vulnerability response.
+- Resource, memory, workflow, and later UI extension points.
+- Provisioning plugins for installing or operating OpenAB instances without coupling providers to the
+  Studio kernel.
+- WASM/WASI runtime only where its host-call and permission model is proven across target devices.
 
-- Desktop-managed local OpenAB installation, startup, health, repair, and upgrades.
-- Explicit choice between connecting to an existing local instance and starting a managed one.
-- Multi-agent rooms as client orchestration over independent ACP sessions.
-- Mobile shell after touch and background-lifecycle requirements are defined.
-- Cross-device transcript sync after identity, encryption, conflict, retention, and deletion semantics
-  are accepted.
-- WASM components where they remove duplicated protocol logic or provide measured client-side value.
+Exit criteria:
 
-Bundling the OpenAB runtime is not an automatic desktop requirement. Before accepting it, compare
-artifact size, agent CLI installation/auth, child-process sandboxing, upgrades, crash recovery, and
-support cost against the remote-first model.
+- An external author can build, test, package, install, upgrade, and remove a plugin using published
+  documentation and tooling only.
+- Registry compromise, malicious update, abandoned plugin, and runtime crash have documented recovery
+  paths.
 
-## Proposed implementation slices
+## Explicitly paused or deferred
 
-Create issues from these slices rather than one umbrella "build OpenAB Studio" issue:
+- Browser-hosted Web App distribution is paused.
+- Studio-managed local OpenAB installation is deferred to provisioning plugins.
+- UI plugins are deferred until tool/resource/memory extension contracts are stable.
+- Billing, marketplace economics, and fleet hosting are not part of the initial product boundary.
 
-| Slice | Depends on | Suggested proof |
-|---|---|---|
-| ACP TypeScript wire types and JSON-RPC dispatcher | Current `/acp` contract | Recorded fixture + live conformance |
-| Connection/reconnect state machine | ACP client | Deterministic fake-clock tests + real socket test |
-| Transcript store contract | App core | Browser and desktop adapter contract tests |
-| Reference conversation UI | App core | Interaction and accessibility tests |
-| Tauri `HostBridge` | M0 | Browser no-op and desktop command allowlist tests |
-| Credential store | Tauri shell | Restart/removal tests on all target OSes |
-| Packaging/release pipeline | Tauri shell | Install, launch, update, rollback evidence |
-| Remote identity ADR | Control plane decision | Cross-user isolation and revocation tests |
-| Capability-host ADR | M2 + permission design | Threat model and one low-risk provider E2E |
-| Structured ACP event slices | Server support | Capability negotiation + old-server fallback |
+## Progress gates
 
-## Known risks to track
-
-- ACP and MCP evolve independently; pin generated types and refresh against upstream deliberately.
-- Browser and native WebSocket implementations may differ in auth, proxy, TLS, and suspend/resume
-  behavior.
-- A locally correct transcript may diverge from agent context after server expiry or partial failure.
-- Desktop auto-update, signing, and credential behavior are three OS-specific products, not one CI
-  checkbox.
-- Reverse MCP turns the client into a tool authority; a compromised app or extension is inside the
-  user's granted capability boundary.
-- Local runtime bundling can quietly make the desktop shell responsible for agent credentials,
-  subprocess sandboxing, storage migration, and recovery.
-
-## Planning hygiene
-
-- Keep stable decisions in the ADR and temporary sequencing in this file.
-- Replace roadmap entries with issue/PR links when work starts; do not use completed prose as a
-  substitute for live tracker state.
-- Refresh the server capability table at every milestone boundary.
-- Record platform support only after install and runtime verification on that OS/architecture.
-- Treat Web, macOS, Windows, and Linux as separate release evidence even when they share source.
+A phase advances because its exit criteria are proven, not because its issue count reaches a
+percentage. Live status belongs in GitHub Issues and the Project board. Architecture changes update
+an ADR; temporary blockers and delivery sequencing stay in the tracker.

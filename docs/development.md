@@ -61,6 +61,12 @@ content security policy allows only same-origin resources and the local Tauri IP
 Generate each native project once from the pinned Tauri CLI, then use the corresponding development
 entry point:
 
+> [!WARNING]
+> Even with `--ci --skip-targets-install`, the Tauri CLI may mutate host package state. On the
+> observed host, iOS initialization automatically installed Homebrew `libimobiledevice` before
+> CocoaPods blocked the command. Use only an approved, prepared host and review current Tauri
+> prerequisite behavior before running either init command.
+
 ```sh
 pnpm tauri:ios:init
 pnpm tauri:ios:dev
@@ -69,9 +75,9 @@ pnpm tauri:android:init
 pnpm tauri:android:dev
 ```
 
-The init commands use `--ci --skip-targets-install` so that they never mutate a developer's Rust
-toolchain implicitly. They may still verify or request platform-host prerequisites, so run them on a
-prepared development host. Install the target families explicitly when working on them:
+The init commands use `--ci --skip-targets-install`, so Rust target installation remains explicit.
+They do not make platform-host setup side-effect free. Install the target families explicitly when
+working on them:
 
 ```sh
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios

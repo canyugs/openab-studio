@@ -1,0 +1,30 @@
+{
+  "name": "@openab/studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm run check && vite build",
+    "check": "tsc --noEmit",
+    "dev": "vite",
+    "format": "prettier --write index.html package.json src vite.config.ts tsconfig.json",
+    "format:check": "prettier --check index.html package.json src vite.config.ts tsconfig.json",
+    "tauri": "tauri",
+    "tauri:android:dev": "tauri android dev",
+    "tauri:android:init": "tauri android init --ci --skip-targets-install",
+    "tauri:desktop:build": "tauri build --no-bundle",
+    "tauri:desktop:dev": "tauri dev",
+    "tauri:ios:dev": "tauri ios dev",
+    "tauri:ios:init": "tauri ios init --ci --skip-targets-install"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.11.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "@types/node": "26.1.2",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2",
+    "vite": "8.2.1"
+  }
+}

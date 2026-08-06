@@ -1,0 +1,22 @@
+{
+  "name": "@openab/studio-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.29.2",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "pnpm --filter @openab/studio run build && cargo build --workspace",
+    "check": "cargo check --workspace && pnpm --filter @openab/studio run check",
+    "format": "cargo fmt --all && pnpm --filter @openab/studio run format",
+    "format:check": "cargo fmt --all -- --check && pnpm --filter @openab/studio run format:check",
+    "tauri:android:dev": "pnpm --filter @openab/studio run tauri:android:dev",
+    "tauri:android:init": "pnpm --filter @openab/studio run tauri:android:init",
+    "tauri:desktop:build": "pnpm --filter @openab/studio run tauri:desktop:build",
+    "tauri:desktop:dev": "pnpm --filter @openab/studio run tauri:desktop:dev",
+    "tauri:ios:dev": "pnpm --filter @openab/studio run tauri:ios:dev",
+    "tauri:ios:init": "pnpm --filter @openab/studio run tauri:ios:init",
+    "test": "cargo test --workspace"
+  }
+}

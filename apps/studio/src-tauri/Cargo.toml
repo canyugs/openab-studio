@@ -1,0 +1,18 @@
+[package]
+name = "studio-shell"
+description = "OpenAB Studio Tauri desktop and mobile shell"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[lib]
+name = "studio_shell_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+studio-core = { path = "../../../crates/studio-core" }
+tauri.workspace = true

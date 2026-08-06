@@ -24,10 +24,32 @@ existing instances first; lifecycle provisioning is a later plugin capability.
 | Memory | Provider-backed information governed as resources, including provenance and retention |
 | Plugin | A signed or locally trusted package contributing tools, resources, memory, workflows, or UI |
 
-The **proposed** initial invariant is that one OpenAB instance belongs to at most one fleet at a time.
-Moving an instance is an explicit audited operation. Cross-fleet views are client-side aggregation
-and never erase the underlying authorization boundary. This invariant remains a decision to confirm
-before the fleet schema is frozen.
+### Fleet ownership invariant
+
+An OpenAB instance belongs to **at most one owning Fleet at a time**. It may be temporarily
+unassigned only while it is being enrolled or moved. This invariant was accepted in
+[issue #2](https://github.com/canyugs/openab-studio/issues/2).
+
+Studio can manage and display many Fleets at once, but a cross-Fleet view aggregates separate
+authorization contexts. It does not create simultaneous Fleet membership or erase the underlying
+policy boundary.
+
+Moving an instance between Fleets is an explicit audited operation that must:
+
+1. preflight identity, resource, and provider conflicts;
+2. revoke authority issued by the source Fleet;
+3. invalidate Fleet-scoped caches and session bindings;
+4. issue destination-Fleet authority before activating the instance there; and
+5. report resource/provider migration outcomes separately from the ownership change.
+
+Fleet-owned resources, grants, memory, and audit records are not silently copied during a move.
+Each resource or provider defines whether its data remains in the source Fleet, can be migrated, or
+must be recreated.
+
+Simultaneous multi-Fleet ownership was rejected for the initial contract because overlapping policy,
+revocation, cache keys, audit attribution, and offline reconciliation would become ambiguous. A
+future Fleet federation contract may allow explicitly delegated cross-Fleet access without changing
+the single-owner invariant.
 
 ## Logical system
 
@@ -213,7 +235,6 @@ missing a general contract.
 
 ## Open decisions
 
-- Confirm whether an OpenAB instance may belong to more than one fleet simultaneously.
 - Exact Fleet Management API encoding and event transport.
 - Whether the first personal fleet endpoint is embedded in OpenAB or shipped as a separate controller.
 - Local database and encrypted-cache implementation.

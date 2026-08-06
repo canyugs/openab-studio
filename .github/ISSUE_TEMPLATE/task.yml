@@ -1,0 +1,65 @@
+name: Task
+description: Propose one bounded, independently verifiable Studio deliverable.
+title: "[Task] "
+labels: ["type:task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use one issue for one logical PR or evidence artifact. See the project-management document for readiness and ownership rules.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: State one observable result.
+      placeholder: Add a verifiable result, not a list of activities.
+    validations:
+      required: true
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: Name adjacent work deliberately excluded from this issue.
+      placeholder: This issue does not...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List accepted ADRs, schemas, issues, external accounts, or OpenAB changes. Write None when there are no dependencies.
+      placeholder: Accepted ADR, issue, or external dependency; or None.
+    validations:
+      required: true
+  - type: textarea
+    id: affected-contracts
+    attributes:
+      label: Affected contracts
+      description: Identify schema, API, module ownership, and compatibility expectations.
+      placeholder: The template contract in docs/project-management.md; no runtime contract change.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Add independently verifiable behavior or artifacts as checklist items.
+      placeholder: "- [ ] A reviewer can verify..."
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: Proof
+      description: Specify required tests, fixtures, screenshots, packages, devices, or manual procedure.
+      placeholder: Command, fixture, screenshot, or manual procedure required for acceptance.
+    validations:
+      required: true
+  - type: textarea
+    id: security-platform-notes
+    attributes:
+      label: Security and platform notes
+      description: Record permission, secret, migration, data-loss, and OS-specific risks. Write None when not applicable.
+      placeholder: Security and platform considerations; or None.
+    validations:
+      required: true

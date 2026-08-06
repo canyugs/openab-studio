@@ -1,0 +1,74 @@
+name: Decision or spike
+description: Record one bounded architecture decision or time-boxed uncertainty-reduction task.
+title: "[Decision/Spike] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Select the classification below, then make sure triage applies the matching type label: type:decision or type:spike.
+  - type: dropdown
+    id: issue-kind
+    attributes:
+      label: Issue type
+      description: A decision produces an ADR or explicit rejection; a spike produces a decision-quality result rather than production code by default.
+      options:
+        - Decision (`type:decision`)
+        - Spike (`type:spike`)
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: State the observable decision or uncertainty-reduction result.
+      placeholder: Accept or reject one bounded question, or produce one decision-quality result.
+    validations:
+      required: true
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: Name adjacent decisions or implementation deliberately excluded.
+      placeholder: This issue does not implement or decide...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List accepted ADRs, schemas, issues, external accounts, or OpenAB changes. Write None when there are no dependencies.
+      placeholder: Accepted ADR, issue, or external dependency; or None.
+    validations:
+      required: true
+  - type: textarea
+    id: affected-contracts
+    attributes:
+      label: Affected contracts
+      description: Identify the decision, schema, API, module ownership, and compatibility expectations affected.
+      placeholder: ADR, schema, API, or ownership boundary affected.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Add independently verifiable decision or research outcomes as checklist items.
+      placeholder: "- [ ] The ADR records the accepted decision and consequences."
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: Proof
+      description: Specify ADR review records, experiments, fixtures, measurements, or manual evidence required.
+      placeholder: Evidence that allows a reviewer to independently assess the outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: security-platform-notes
+    attributes:
+      label: Security and platform notes
+      description: Record permission, secret, migration, data-loss, and OS-specific risks. Write None when not applicable.
+      placeholder: Security and platform considerations; or None.
+    validations:
+      required: true

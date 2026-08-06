@@ -60,3 +60,8 @@ have one tracking issue per repository and an explicit dependency between them.
 GitHub Issues are the live source of task status once execution starts. These documents define the
 accepted direction, boundaries, milestone exit criteria, and task decomposition; they are not a
 substitute for the tracker.
+
+## Contributing
+
+Use the [contribution guide](./CONTRIBUTING.md) for the canonical ADR, roadmap, workstream, and
+tracker-ownership routing rules. Automation agents should also follow [AGENTS.md](./AGENTS.md).

@@ -236,17 +236,30 @@ interval.
 
 ### Cross-Fleet transfer is deferred
 
-V1alpha1 does not define a cross-controller Fleet transfer protocol. The instances:enroll operation
-accepts only a truly unassigned OpenAB instance: at acceptance, the controller must verify
-atomically against the durable ownership authority that the instance has no owning Fleet. The
+V1alpha1 does not define a cross-controller Fleet transfer protocol. For initial enrollment, the
+fencing authority is the authenticated OpenAB participant described by OAB-FM-01. That participant
+durably owns its stable instance identity's ownership binding and provides an authenticated atomic
+compare-and-set from unassigned to {fleetId, controllerId, authorityEpoch}. The
 expectedOwnerFleetId value of null is a precondition for initial enrollment, not a transfer
 authorization.
+
+A Fleet controller may record a pending enrollment operation, but it MUST NOT accept or persist the
+OpenAB instance as actively enrolled until the participant acknowledges that compare-and-set. Two
+concurrent controller enrollments for the same honest OpenAB instance therefore yield exactly one
+successful binding; the losing controller receives transfer_protocol_required and cannot make its
+local registry authoritative. The participant must not overwrite an existing binding unless a future
+cross-Fleet transfer authorization/receipt authorizes it.
 
 If the instance is already owned by any Fleet, instances:enroll returns the stable
 transfer_protocol_required error. Studio MUST NOT simulate a move by chaining independent source
 detach/unenroll and destination enroll mutations, whether directly, through a retry queue, or in
 background recovery. A client crash, replay, source-controller failure, or destination-controller
 failure during such a chain could otherwise lose ownership or leave authority ambiguous.
+
+This fence assumes an honest, stable participant identity. A compromised OpenAB instance or cloned
+instance identity can lie about or accept a binding, so neither Studio nor Fleet controllers alone
+provide stronger global uniqueness. A Fleet threat model that needs that property requires a separate
+trusted registry or attestation/federation decision.
 
 The later, explicit cross-Fleet transfer contract must preserve the accepted move invariants:
 
@@ -435,7 +448,7 @@ in its own repository.
 
 | Pair | Issue-ready OpenAB follow-up title and scope | Studio work gated by the result | Required proof |
 |---|---|---|---|
-| OAB-FM-01 | **Fleet Management: OpenAB instance discovery and controller participant contract** — advertise stable instance identity, management discovery, protocol/capability versions, authenticated enrollment, controller acknowledgement, desired-state acknowledgement, and health/heartbeat facts. | Instance enrollment, capability cache, controller topology discovery. | An embedded and a dedicated fixture advertise indistinguishable client contract data except diagnostic topology. |
+| OAB-FM-01 | **Fleet Management: OpenAB instance discovery and controller participant contract** — advertise stable instance identity, management discovery, protocol/capability versions, authenticated enrollment, and a durable participant ownership-binding compare-and-set from unassigned to {fleetId, controllerId, authorityEpoch}; acknowledge the binding before activation, then provide desired-state acknowledgement and health/heartbeat facts. | Instance enrollment, capability cache, controller topology discovery. | Two concurrent controllers enroll the same honest instance and exactly one binding succeeds; a participant restart retains that binding; embedded and dedicated fixtures advertise indistinguishable client contract data except diagnostic topology. |
 | OAB-FM-02 | **Fleet Management: audience-bound session authority propagation into ACP** — accept a controller-issued session authority at ACP session create/resume, bind it to the selected OpenAB instance and principal/device, and keep ACP transport authentication separate. | Shared-Fleet ACP session launch and attributable agent access. | An ACP transport bearer alone is denied as a Fleet identity; a valid controller authority succeeds only for its audience and expiry. |
 | OAB-FM-03 | **Fleet Management: revocation and authorization-lease enforcement** — consume controller revocation/epoch changes, bound local authorization caching, reject new/renewed session authority when controller connectivity is lost, and expose enforcement capability/latency. | Grant/device revocation UX and controller-loss recovery. | Revoked management/session authority is rejected within the advertised bound; controller loss cannot extend an expired authority. |
 | OAB-FM-04 | **Fleet Management: revisioned instance status and operation acknowledgement** — publish lifecycle/health/configuration status with instance-side revisions and acknowledge controller operations without exposing secrets. | Fleet event ingestion, operation completion UI, plugin placement/health summaries. | Duplicate delivery, out-of-order acknowledgement, and a restarted instance converge through revision/cursor fixtures. |
@@ -485,6 +498,8 @@ consumer issue before the relevant P3 work is considered unblocked.
   explicit client and OpenAB-instance behavior without silent last-write-wins.
 - V1alpha1 enrollment accepts only unassigned instances; cross-Fleet moves require the deferred,
   coordinated transfer protocol and cannot be composed from independent mutations.
+- Initial enrollment is fenced by the authenticated OpenAB participant's durable ownership-binding
+  compare-and-set; two concurrent enrollments of one honest instance yield exactly one active owner.
 - ACP session authority is distinct from the ACP transport bearer, and MCP remains a plugin data
   plane.
 - The paired OpenAB dependency map names the instance work that must land before shared-Fleet
@@ -495,5 +510,6 @@ consumer issue before the relevant P3 work is considered unblocked.
 The next accepted contracts must define shared schema/compatibility policy, identity federation and
 credential formats, controller persistence/failover guarantees, exact audit retention/redaction
 requirements, the concrete OpenAB participant wire protocol, and the deferred cross-Fleet transfer
-protocol. Those decisions may refine this profile only if they preserve the management-plane boundary
-and the safety behavior above.
+protocol. A separate trusted registry or attestation/federation decision is required before claiming
+global uniqueness against compromised or cloned instance identities. Those decisions may refine this
+profile only if they preserve the management-plane boundary and the safety behavior above.

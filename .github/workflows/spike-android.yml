@@ -236,67 +236,49 @@ jobs:
           profile: ${{ matrix.profile }}
           avd-name: openab-studio-${{ matrix.label }}
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            set -eu
-            evidence_dir="evidence/android/${{ matrix.label }}"
-            apk="$(find android-build -type f -name '*x86_64*.apk' -print -quit)"
-            test -n "$apk"
-
-            adb devices -l | tee "$evidence_dir/adb-devices.txt"
-            {
-              adb shell wm size
-              adb shell wm density
-              adb shell getprop ro.product.manufacturer
-              adb shell getprop ro.product.model
-              adb shell getprop ro.build.version.sdk
-            } > "$evidence_dir/device-profile.txt"
-            adb install -r "$apk" | tee "$evidence_dir/install.txt"
-
-            adb shell am force-stop "$ANDROID_PACKAGE"
-            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/foreground-launch.txt"
-            sleep 5
-            adb shell dumpsys activity activities > "$evidence_dir/foreground-activities.txt"
-            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/foreground-pid.txt" || true
-            adb shell uiautomator dump /sdcard/openab-studio-${{ matrix.label }}-foreground.xml
-            adb pull /sdcard/openab-studio-${{ matrix.label }}-foreground.xml "$evidence_dir/foreground-window.xml"
-            adb exec-out screencap -p > "$evidence_dir/foreground.png"
-            if grep -F 'Trusted core ready (protocol 1).' "$evidence_dir/foreground-window.xml"; then
-              printf 'uiautomator exposed the typed Rust/TypeScript seam text.\n' > "$evidence_dir/typed-seam.txt"
-            else
-              printf 'The WebView accessibility tree did not expose the typed seam text; inspect foreground.png with the launch/activity evidence.\n' > "$evidence_dir/typed-seam.txt"
-            fi
-
-            adb shell input keyevent KEYCODE_HOME
-            sleep 2
-            adb shell dumpsys activity activities > "$evidence_dir/background-activities.txt"
-            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/background-pid.txt" || true
-
-            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/foreground-return.txt"
-            sleep 2
-            adb shell dumpsys activity activities > "$evidence_dir/return-activities.txt"
-            adb exec-out screencap -p > "$evidence_dir/return.png"
-
-            adb shell am force-stop "$ANDROID_PACKAGE"
-            sleep 1
-            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/terminated-pid.txt" || true
-            if test -s "$evidence_dir/terminated-pid.txt"; then
-              printf 'force-stop left a process running\n' >&2
-              exit 1
-            fi
-            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/cold-relaunch.txt"
-            sleep 5
-            adb shell dumpsys activity activities > "$evidence_dir/cold-relaunch-activities.txt"
-            adb exec-out screencap -p > "$evidence_dir/cold-relaunch.png"
-
-            set +e
-            adb shell am start -W -a android.intent.action.VIEW -d 'openab-studio://spike' \
-              > "$evidence_dir/deep-link-attempt.txt" 2>&1
-            deep_link_status=$?
-            set -e
-            printf 'exit_status=%s\n' "$deep_link_status" >> "$evidence_dir/deep-link-attempt.txt"
-            adb shell dumpsys package "$ANDROID_PACKAGE" > "$evidence_dir/package.txt"
+          # This action executes each literal input line in a new shell. Keep the nested probe folded into one line.
+          script: >-
+            sh -eu -c '
+            evidence_dir="evidence/android/${{ matrix.label }}";
+            apk="$(find android-build -type f -name "*x86_64*.apk" -print -quit)";
+            test -n "$apk";
+            mkdir -p "$evidence_dir";
+            adb devices -l > "$evidence_dir/adb-devices.txt";
+            { adb shell wm size; adb shell wm density; adb shell getprop ro.product.manufacturer; adb shell getprop ro.product.model; adb shell getprop ro.build.version.sdk; } > "$evidence_dir/device-profile.txt";
+            adb install -r "$apk" > "$evidence_dir/install.txt";
+            adb shell am force-stop "$ANDROID_PACKAGE";
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 > "$evidence_dir/foreground-launch.txt";
+            sleep 5;
+            adb shell dumpsys activity activities > "$evidence_dir/foreground-activities.txt";
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/foreground-pid.txt" || true;
+            adb shell uiautomator dump /sdcard/openab-studio-${{ matrix.label }}-foreground.xml;
+            adb pull /sdcard/openab-studio-${{ matrix.label }}-foreground.xml "$evidence_dir/foreground-window.xml";
+            adb exec-out screencap -p > "$evidence_dir/foreground.png";
+            if grep -F "Trusted core ready (protocol 1)." "$evidence_dir/foreground-window.xml"; then printf "uiautomator exposed the typed Rust/TypeScript seam text.\n" > "$evidence_dir/typed-seam.txt"; else printf "The WebView accessibility tree did not expose the typed seam text; inspect foreground.png with the launch/activity evidence.\n" > "$evidence_dir/typed-seam.txt"; fi;
+            adb shell input keyevent KEYCODE_HOME;
+            sleep 2;
+            adb shell dumpsys activity activities > "$evidence_dir/background-activities.txt";
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/background-pid.txt" || true;
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 > "$evidence_dir/foreground-return.txt";
+            sleep 2;
+            adb shell dumpsys activity activities > "$evidence_dir/return-activities.txt";
+            adb exec-out screencap -p > "$evidence_dir/return.png";
+            adb shell am force-stop "$ANDROID_PACKAGE";
+            sleep 1;
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/terminated-pid.txt" || true;
+            if test -s "$evidence_dir/terminated-pid.txt"; then printf "force-stop left a process running\n" >&2; exit 1; fi;
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 > "$evidence_dir/cold-relaunch.txt";
+            sleep 5;
+            adb shell dumpsys activity activities > "$evidence_dir/cold-relaunch-activities.txt";
+            adb exec-out screencap -p > "$evidence_dir/cold-relaunch.png";
+            set +e;
+            adb shell am start -W -a android.intent.action.VIEW -d "openab-studio://spike" > "$evidence_dir/deep-link-attempt.txt" 2>&1;
+            deep_link_status=$?;
+            set -e;
+            printf "exit_status=%s\n" "$deep_link_status" >> "$evidence_dir/deep-link-attempt.txt";
+            adb shell dumpsys package "$ANDROID_PACKAGE" > "$evidence_dir/package.txt";
             adb logcat -d -v threadtime > "$evidence_dir/logcat.txt" || true
-
+            '
       - name: Publish disposable ${{ matrix.label }} lifecycle evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

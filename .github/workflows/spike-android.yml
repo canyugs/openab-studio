@@ -1,0 +1,314 @@
+name: Android lifecycle spike
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/spike-android.yml"
+      - "apps/studio/**"
+      - "crates/studio-core/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "docs/spikes/android-lifecycle.md"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-lifecycle:
+    name: Build and lifecycle evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      ANDROID_API_LEVEL: "35"
+      ANDROID_NDK_VERSION: "27.2.12479018"
+      ANDROID_BUILD_TOOLS_VERSION: "35.0.0"
+      ANDROID_PACKAGE: dev.openab.studio
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Rust 1.85
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.85"
+
+      - name: Set up Node.js 22.12.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.12.0
+          package-manager-cache: false
+
+      - name: Set up pnpm 10.29.2
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.29.2
+          cache: false
+
+      - name: Set up Temurin JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK, platform, build tools, and NDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+            ndk;27.2.12479018
+
+      - name: Record disposable runner toolchain
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          test -n "$sdk_root"
+          ndk_home="$sdk_root/ndk/$ANDROID_NDK_VERSION"
+          test -x "$ndk_home/ndk-build"
+          mkdir -p evidence/android/build
+
+          {
+            printf 'runner=%s\n' "${ImageOS:-unknown}"
+            printf 'java_home=%s\n' "$JAVA_HOME"
+            java -version
+            rustc -Vv
+            node --version
+            pnpm --version
+            printf 'android_sdk_root=%s\n' "$sdk_root"
+            printf 'ndk_home=%s\n' "$ndk_home"
+            sdkmanager --version
+          } | tee evidence/android/build/toolchain.txt
+
+          {
+            printf 'ANDROID_HOME=%s\n' "$sdk_root"
+            printf 'ANDROID_SDK_ROOT=%s\n' "$sdk_root"
+            printf 'ANDROID_NDK_HOME=%s\n' "$ndk_home"
+            printf 'NDK_HOME=%s\n' "$ndk_home"
+          } >> "$GITHUB_ENV"
+
+      - name: Install locked JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Android Rust targets
+        run: |
+          rustup target add \
+            aarch64-linux-android \
+            armv7-linux-androideabi \
+            i686-linux-android \
+            x86_64-linux-android
+
+      - name: Generate Android project on the ephemeral runner
+        run: |
+          set -euo pipefail
+          test ! -e apps/studio/src-tauri/gen/android
+          pnpm --filter @openab/studio exec tauri android init --ci --skip-targets-install
+          test -f apps/studio/src-tauri/gen/android/app/build.gradle.kts
+
+      - name: Build debug APKs for every Tauri Android ABI
+        run: |
+          pnpm --filter @openab/studio exec tauri android build \
+            --ci \
+            --debug \
+            --apk \
+            --split-per-abi \
+            --target aarch64 armv7 i686 x86_64
+
+      - name: Inspect Android build and signing metadata
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/android/build/generated
+          cp apps/studio/src-tauri/tauri.conf.json evidence/android/build/tauri.conf.json
+          cp apps/studio/src-tauri/gen/android/app/build.gradle.kts evidence/android/build/generated/
+          cp apps/studio/src-tauri/gen/android/app/src/main/AndroidManifest.xml evidence/android/build/generated/
+          find apps/studio/src-tauri/gen/android/app/build/outputs -type f -name '*.apk' -print | sort \
+            | tee evidence/android/build/apk-paths.txt
+          test -s evidence/android/build/apk-paths.txt
+
+          aapt="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS_VERSION/aapt"
+          apksigner="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS_VERSION/apksigner"
+          while IFS= read -r apk; do
+            name="$(basename "$apk")"
+            {
+              printf 'apk=%s\n' "$apk"
+              "$aapt" dump badging "$apk"
+              printf '\n-- native libraries --\n'
+              unzip -l "$apk" | rg 'lib/.+\.so$' || true
+              printf '\n-- signature verification --\n'
+              "$apksigner" verify --verbose --print-certs "$apk"
+            } > "evidence/android/build/$name.txt"
+          done < evidence/android/build/apk-paths.txt
+
+          x86_apk="$(rg --files -g '*x86_64*.apk' apps/studio/src-tauri/gen/android/app/build/outputs | head -n 1)"
+          test -n "$x86_apk"
+          printf '%s\n' "$x86_apk" > evidence/android/build/x86_64-apk-path.txt
+
+      - name: Enable KVM for disposable emulators
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Exercise phone-profile lifecycle
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          avd-name: openab-studio-phone
+          ndk: 27.2.12479018
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -euo pipefail
+            evidence_dir="evidence/android/phone"
+            mkdir -p "$evidence_dir"
+            apk="$(cat evidence/android/build/x86_64-apk-path.txt)"
+
+            adb devices -l | tee "$evidence_dir/adb-devices.txt"
+            {
+              adb shell wm size
+              adb shell wm density
+              adb shell getprop ro.product.manufacturer
+              adb shell getprop ro.product.model
+              adb shell getprop ro.build.version.sdk
+            } > "$evidence_dir/device-profile.txt"
+            adb install -r "$apk" | tee "$evidence_dir/install.txt"
+
+            adb shell am force-stop "$ANDROID_PACKAGE"
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/foreground-launch.txt"
+            sleep 5
+            adb shell dumpsys activity activities > "$evidence_dir/foreground-activities.txt"
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/foreground-pid.txt" || true
+            adb shell uiautomator dump /sdcard/openab-studio-phone-foreground.xml
+            adb pull /sdcard/openab-studio-phone-foreground.xml "$evidence_dir/foreground-window.xml"
+            adb exec-out screencap -p > "$evidence_dir/foreground.png"
+            if rg --fixed-strings 'Trusted core ready (protocol 1).' "$evidence_dir/foreground-window.xml"; then
+              printf 'uiautomator exposed the typed Rust/TypeScript seam text.\n' > "$evidence_dir/typed-seam.txt"
+            else
+              printf 'The WebView accessibility tree did not expose the typed seam text; inspect foreground.png with the launch/activity evidence.\n' > "$evidence_dir/typed-seam.txt"
+            fi
+
+            adb shell input keyevent KEYCODE_HOME
+            sleep 2
+            adb shell dumpsys activity activities > "$evidence_dir/background-activities.txt"
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/background-pid.txt" || true
+
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/foreground-return.txt"
+            sleep 2
+            adb shell dumpsys activity activities > "$evidence_dir/return-activities.txt"
+            adb exec-out screencap -p > "$evidence_dir/return.png"
+
+            adb shell am force-stop "$ANDROID_PACKAGE"
+            sleep 1
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/terminated-pid.txt" || true
+            if test -s "$evidence_dir/terminated-pid.txt"; then
+              printf 'force-stop left a process running\n' >&2
+              exit 1
+            fi
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/cold-relaunch.txt"
+            sleep 5
+            adb shell dumpsys activity activities > "$evidence_dir/cold-relaunch-activities.txt"
+            adb exec-out screencap -p > "$evidence_dir/cold-relaunch.png"
+
+            set +e
+            adb shell am start -W -a android.intent.action.VIEW -d 'openab-studio://spike' \
+              > "$evidence_dir/deep-link-attempt.txt" 2>&1
+            deep_link_status=$?
+            set -e
+            printf 'exit_status=%s\n' "$deep_link_status" >> "$evidence_dir/deep-link-attempt.txt"
+            adb shell dumpsys package "$ANDROID_PACKAGE" > "$evidence_dir/package.txt"
+            adb logcat -d -v threadtime > "$evidence_dir/logcat.txt" || true
+
+      - name: Exercise tablet-profile lifecycle
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_tablet
+          avd-name: openab-studio-tablet
+          ndk: 27.2.12479018
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -euo pipefail
+            evidence_dir="evidence/android/tablet"
+            mkdir -p "$evidence_dir"
+            apk="$(cat evidence/android/build/x86_64-apk-path.txt)"
+
+            adb devices -l | tee "$evidence_dir/adb-devices.txt"
+            {
+              adb shell wm size
+              adb shell wm density
+              adb shell getprop ro.product.manufacturer
+              adb shell getprop ro.product.model
+              adb shell getprop ro.build.version.sdk
+            } > "$evidence_dir/device-profile.txt"
+            adb install -r "$apk" | tee "$evidence_dir/install.txt"
+
+            adb shell am force-stop "$ANDROID_PACKAGE"
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/foreground-launch.txt"
+            sleep 5
+            adb shell dumpsys activity activities > "$evidence_dir/foreground-activities.txt"
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/foreground-pid.txt" || true
+            adb shell uiautomator dump /sdcard/openab-studio-tablet-foreground.xml
+            adb pull /sdcard/openab-studio-tablet-foreground.xml "$evidence_dir/foreground-window.xml"
+            adb exec-out screencap -p > "$evidence_dir/foreground.png"
+            if rg --fixed-strings 'Trusted core ready (protocol 1).' "$evidence_dir/foreground-window.xml"; then
+              printf 'uiautomator exposed the typed Rust/TypeScript seam text.\n' > "$evidence_dir/typed-seam.txt"
+            else
+              printf 'The WebView accessibility tree did not expose the typed seam text; inspect foreground.png with the launch/activity evidence.\n' > "$evidence_dir/typed-seam.txt"
+            fi
+
+            adb shell input keyevent KEYCODE_HOME
+            sleep 2
+            adb shell dumpsys activity activities > "$evidence_dir/background-activities.txt"
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/background-pid.txt" || true
+
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/foreground-return.txt"
+            sleep 2
+            adb shell dumpsys activity activities > "$evidence_dir/return-activities.txt"
+            adb exec-out screencap -p > "$evidence_dir/return.png"
+
+            adb shell am force-stop "$ANDROID_PACKAGE"
+            sleep 1
+            adb shell pidof "$ANDROID_PACKAGE" > "$evidence_dir/terminated-pid.txt" || true
+            if test -s "$evidence_dir/terminated-pid.txt"; then
+              printf 'force-stop left a process running\n' >&2
+              exit 1
+            fi
+            adb shell monkey -p "$ANDROID_PACKAGE" 1 | tee "$evidence_dir/cold-relaunch.txt"
+            sleep 5
+            adb shell dumpsys activity activities > "$evidence_dir/cold-relaunch-activities.txt"
+            adb exec-out screencap -p > "$evidence_dir/cold-relaunch.png"
+
+            set +e
+            adb shell am start -W -a android.intent.action.VIEW -d 'openab-studio://spike' \
+              > "$evidence_dir/deep-link-attempt.txt" 2>&1
+            deep_link_status=$?
+            set -e
+            printf 'exit_status=%s\n' "$deep_link_status" >> "$evidence_dir/deep-link-attempt.txt"
+            adb shell dumpsys package "$ANDROID_PACKAGE" > "$evidence_dir/package.txt"
+            adb logcat -d -v threadtime > "$evidence_dir/logcat.txt" || true
+
+      - name: Record source-tree boundary
+        if: always()
+        run: |
+          mkdir -p evidence/android/build
+          git status --short > evidence/android/build/git-status-after-spike.txt
+          git diff --check > evidence/android/build/git-diff-check.txt
+
+      - name: Publish disposable Android evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-lifecycle-spike-${{ github.run_id }}
+          path: evidence/android
+          if-no-files-found: error
+          retention-days: 14

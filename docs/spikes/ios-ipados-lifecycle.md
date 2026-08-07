@@ -23,11 +23,17 @@ local `mcp-stdio` executables. That distinction follows the
 ## Reproducible hosted evidence
 
 Run [`.github/workflows/spike-ios.yml`](../../.github/workflows/spike-ios.yml) with
-`workflow_dispatch`, or let its scoped pull-request trigger run. It uses a disposable `macos-14`
+`workflow_dispatch`, or let its scoped pull-request trigger run. It uses a disposable `macos-15`
 runner and creates new iPhone and iPad simulators from the newest available iOS runtime and installed
 device types. The runner records its exact macOS, Xcode, simulator SDK, Rust, Node, pnpm, Tauri CLI,
 CocoaPods, device type, and runtime versions in the artifact rather than assuming a stable runner
 image.
+
+The initial run on `macos-14` is retained as a failed evidence artifact: it generated the Apple
+project and booted both ARM simulators, but its Xcode 15.4 failed to open the generated project-file
+format 77. That is a hosted-toolchain compatibility finding, not a product or signing failure. The
+workflow therefore selects `macos-15`, whose supported Xcode family is compatible with the generated
+project format; every run still records the exact image/Xcode pair before it makes a support claim.
 
 The workflow deliberately has `contents: read`, disables checkout credentials and package-manager
 caches, uses full-commit action pins, and supplies no signing or Apple-account secret. If CocoaPods

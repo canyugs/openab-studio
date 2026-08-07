@@ -20,7 +20,7 @@ permissions:
 jobs:
   simulator-evidence:
     name: iPhone and iPad simulator evidence
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     env:
       APP_BUNDLE_ID: dev.openab.studio

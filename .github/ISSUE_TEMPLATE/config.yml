@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project and tracker ownership
+    url: https://github.com/canyugs/openab-studio/blob/main/docs/project-management.md
+    about: Read the canonical-record and Project-field rules before opening a planning or status request.

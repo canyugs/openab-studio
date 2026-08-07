@@ -1,0 +1,92 @@
+name: Bug report
+description: Report observed behavior that violates an accepted contract or release claim.
+title: "[Bug] "
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A bug needs reproducible evidence. Do not treat a UI-only check or issue closure as proof of platform support.
+  - type: textarea
+    id: observed-behavior
+    attributes:
+      label: Observed behavior
+      description: Describe what happened, including the relevant error or evidence.
+      placeholder: Actual behavior and evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: State the accepted contract or release claim that the behavior violates.
+      placeholder: Expected behavior and the contract or claim it contradicts.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and evidence
+      description: Give deterministic steps, fixtures, logs with secrets redacted, screenshots, or a failing test.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: State the observable restored behavior or diagnostic result.
+      placeholder: Restore or explain one verifiable contract behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: Name adjacent cleanup, refactors, or product changes deliberately excluded.
+      placeholder: This report does not...
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List accepted ADRs, schemas, issues, external accounts, or OpenAB changes. Write None when there are no dependencies.
+      placeholder: Accepted ADR, issue, or external dependency; or None.
+    validations:
+      required: true
+  - type: textarea
+    id: affected-contracts
+    attributes:
+      label: Affected contracts
+      description: Identify the violated schema, API, module owner, compatibility expectation, or release claim.
+      placeholder: Contract or release claim affected.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: Add independently verifiable repaired behavior or diagnostic artifacts as checklist items.
+      placeholder: "- [ ] A regression test demonstrates the corrected behavior."
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: Proof
+      description: Specify regression tests, fixtures, screenshots, packages, devices, or manual procedure required for closure.
+      placeholder: Command, fixture, screenshot, or manual procedure required for acceptance.
+    validations:
+      required: true
+  - type: textarea
+    id: security-platform-notes
+    attributes:
+      label: Security and platform notes
+      description: Record permission, secret, migration, data-loss, and OS-specific risks. Write None when not applicable.
+      placeholder: Security and platform considerations; or None.
+    validations:
+      required: true

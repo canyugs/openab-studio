@@ -5,6 +5,7 @@
 - **Architecture:** [System architecture](./docs/architecture.md)
 - **Client decision:** [Cross-platform remote-first client ADR](./docs/adr/remote-first-client.md)
 - **Plugin decision:** [Plugin platform ADR](./docs/adr/plugin-platform.md)
+- **Platform decision:** [Platform support and release tiers ADR](./docs/adr/platform-support-tiers.md)
 - **Delivery:** [Roadmap](./ROADMAP.md) · [Workstreams](./docs/workstreams.md) · [Project management](./docs/project-management.md)
 
 OpenAB Studio is a cross-platform control surface and plugin playground for one or more fleets of

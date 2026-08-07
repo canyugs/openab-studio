@@ -3,6 +3,7 @@
 - **Status:** Living delivery plan
 - **Last updated:** 2026-08-07
 - **Architecture:** [System architecture](./docs/architecture.md)
+- **Platform tiers:** [Platform support and release tiers](./docs/adr/platform-support-tiers.md)
 - **Execution model:** [Workstreams](./docs/workstreams.md)
 - **Tracker rules:** [Project management](./docs/project-management.md)
 

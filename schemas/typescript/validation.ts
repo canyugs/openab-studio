@@ -74,7 +74,10 @@ export function migratePluginManifest(
   options: ValidationOptions = {},
 ): { migrated: boolean; value: unknown } {
   if (!isRecord(input)) {
-    throw new SchemaValidationException({ code: "schema-type-mismatch", path: "$" });
+    throw new SchemaValidationException({
+      code: "schema-type-mismatch",
+      path: "$",
+    });
   }
   if (typeof input.schemaVersion !== "string") {
     throw new SchemaValidationException({
@@ -193,7 +196,12 @@ function validateObject(
   for (const [field, value] of Object.entries(input)) {
     const propertySchema = properties[field];
     if (isSchemaNode(propertySchema)) {
-      const result = validateNode(propertySchema, value, childPath(path, field), root);
+      const result = validateNode(
+        propertySchema,
+        value,
+        childPath(path, field),
+        root,
+      );
       if (!result.ok) {
         return result;
       }
@@ -220,7 +228,10 @@ function validateObject(
   if (typeof propertyNames?.pattern === "string") {
     for (const field of Object.keys(input)) {
       if (!matchesSupportedPattern(field, propertyNames.pattern)) {
-        return failure("schema-invalid-extension-namespace", childPath(path, field));
+        return failure(
+          "schema-invalid-extension-namespace",
+          childPath(path, field),
+        );
       }
     }
   }
@@ -261,7 +272,10 @@ function validateString(
   if (typeof input !== "string") {
     return failure("schema-type-mismatch", path);
   }
-  if (typeof node.minLength === "number" && [...input].length < node.minLength) {
+  if (
+    typeof node.minLength === "number" &&
+    [...input].length < node.minLength
+  ) {
     return failure("schema-min-length", path);
   }
   return success(input);
@@ -301,7 +315,10 @@ function validateRequiredExtensions(
     return success(input);
   }
   if (!Array.isArray(requiredExtensions)) {
-    return failure("schema-type-mismatch", "$.compatibility.requiredExtensions");
+    return failure(
+      "schema-type-mismatch",
+      "$.compatibility.requiredExtensions",
+    );
   }
 
   const extensions = isRecord(input.extensions) ? input.extensions : {};
@@ -320,7 +337,10 @@ function validateRequiredExtensions(
   return success(input);
 }
 
-function resolveReference(root: SchemaNode, reference: string): SchemaNode | undefined {
+function resolveReference(
+  root: SchemaNode,
+  reference: string,
+): SchemaNode | undefined {
   if (!reference.startsWith("#/$defs/")) {
     return undefined;
   }

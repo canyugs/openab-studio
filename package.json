@@ -10,8 +10,10 @@
     "build": "pnpm --filter @openab/studio run build && cargo build --workspace",
     "check": "cargo check --workspace && pnpm --filter @openab/studio run check",
     "contracts:verify": "pnpm schemas:check && cargo test -p studio-protocol --test compatibility_fixtures && pnpm schemas:test:typescript",
-    "format": "cargo fmt --all && pnpm --filter @openab/studio run format",
-    "format:check": "cargo fmt --all -- --check && pnpm --filter @openab/studio run format:check",
+    "format": "cargo fmt --all && pnpm format:schema-sources && pnpm --filter @openab/studio run format",
+    "format:check": "cargo fmt --all -- --check && pnpm format:schema-sources:check && pnpm --filter @openab/studio run format:check",
+    "format:schema-sources": "prettier --write package.json scripts/generate-schemas.mjs scripts/test-typescript-contract-fixtures.mjs schemas/typescript",
+    "format:schema-sources:check": "prettier --check package.json scripts/generate-schemas.mjs scripts/test-typescript-contract-fixtures.mjs schemas/typescript",
     "schemas:check": "node scripts/generate-schemas.mjs --check",
     "schemas:generate": "node scripts/generate-schemas.mjs",
     "schemas:test:typescript": "node scripts/test-typescript-contract-fixtures.mjs",
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@types/node": "26.1.2",
+    "prettier": "3.9.6",
     "typescript": "7.0.2"
   }
 }

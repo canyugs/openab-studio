@@ -27,7 +27,9 @@ for (const fixture of fixturesIn("migrations")) {
   runMigrationFixture(fixture);
 }
 
-process.stdout.write(`TypeScript shared-schema fixtures passed: ${fixtureCount}\n`);
+process.stdout.write(
+  `TypeScript shared-schema fixtures passed: ${fixtureCount}\n`,
+);
 
 function runCompatibilityFixture(fixture: JsonRecord): void {
   switch (fixture.kind) {
@@ -44,7 +46,9 @@ function runCompatibilityFixture(fixture: JsonRecord): void {
     case "validation": {
       const definition = requiredString(fixture, "definition");
       const knownExtensions = stringArray(fixture.knownExtensions);
-      const result = validateDefinition(definition, fixture.input, { knownExtensions });
+      const result = validateDefinition(definition, fixture.input, {
+        knownExtensions,
+      });
       const expected = requiredRecord(fixture, "expect");
       if (expected.valid === true) {
         assert.equal(result.ok, true, fixtureName(fixture));
@@ -59,7 +63,9 @@ function runCompatibilityFixture(fixture: JsonRecord): void {
     }
     case "roundtrip": {
       const knownExtensions = stringArray(fixture.knownExtensions);
-      const parsed = parseSharedContractDocument(fixture.input, { knownExtensions });
+      const parsed = parseSharedContractDocument(fixture.input, {
+        knownExtensions,
+      });
       const reparsed = JSON.parse(JSON.stringify(parsed)) as unknown;
       assert.deepStrictEqual(
         canonicalize(reparsed),
@@ -69,7 +75,9 @@ function runCompatibilityFixture(fixture: JsonRecord): void {
       return;
     }
     default:
-      throw new Error(`Unsupported compatibility fixture kind: ${String(fixture.kind)}`);
+      throw new Error(
+        `Unsupported compatibility fixture kind: ${String(fixture.kind)}`,
+      );
   }
 }
 
@@ -80,7 +88,8 @@ function runMigrationFixture(fixture: JsonRecord): void {
     assert.throws(
       () => migratePluginManifest(fixture.input, { knownExtensions }),
       (error: unknown) =>
-        error instanceof SchemaValidationException && error.error.code === expected.error,
+        error instanceof SchemaValidationException &&
+        error.error.code === expected.error,
       fixtureName(fixture),
     );
     return;
@@ -99,8 +108,11 @@ function fixturesIn(directory: string): JsonRecord[] {
   return readdirSync(resolve(fixtureRoot, directory))
     .filter((entry) => entry.endsWith(".json"))
     .sort()
-    .map((entry) =>
-      JSON.parse(readFileSync(resolve(fixtureRoot, directory, entry), "utf8")) as JsonRecord,
+    .map(
+      (entry) =>
+        JSON.parse(
+          readFileSync(resolve(fixtureRoot, directory, entry), "utf8"),
+        ) as JsonRecord,
     );
 }
 
@@ -139,7 +151,10 @@ function requiredString(record: JsonRecord, field: string): string {
 }
 
 function stringArray(value: unknown): string[] {
-  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+  if (
+    !Array.isArray(value) ||
+    !value.every((entry) => typeof entry === "string")
+  ) {
     return [];
   }
   return value;

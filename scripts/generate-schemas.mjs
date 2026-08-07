@@ -131,7 +131,9 @@ function assertSupportedSchema(source) {
   }
 
   if (!Array.isArray(source["x-openab-migrations"])) {
-    throw new Error("Canonical schema source must declare x-openab-migrations as an array.");
+    throw new Error(
+      "Canonical schema source must declare x-openab-migrations as an array.",
+    );
   }
   for (const [index, migration] of source["x-openab-migrations"].entries()) {
     if (!isObject(migration)) {
@@ -151,7 +153,11 @@ function assertSupportedSchema(source) {
     if (!isObject(migration.rename)) {
       throw new Error(`Migration #${index} must declare an object rename map.`);
     }
-    if (!Object.values(migration.rename).every((target) => typeof target === "string")) {
+    if (
+      !Object.values(migration.rename).every(
+        (target) => typeof target === "string",
+      )
+    ) {
       throw new Error(`Migration #${index} rename targets must be strings.`);
     }
   }
@@ -185,15 +191,28 @@ function assertSchemaNode(node, path) {
       !node.$ref.startsWith("#/$defs/") ||
       Object.keys(node).length !== 1
     ) {
-      throw new Error(`Schema reference ${path}/$ref must be an isolated local definition reference.`);
+      throw new Error(
+        `Schema reference ${path}/$ref must be an isolated local definition reference.`,
+      );
     }
     return;
   }
-  if (node.type !== undefined && !["array", "boolean", "integer", "number", "object", "string"].includes(node.type)) {
+  if (
+    node.type !== undefined &&
+    !["array", "boolean", "integer", "number", "object", "string"].includes(
+      node.type,
+    )
+  ) {
     throw new Error(`Schema node ${path} uses an unsupported type.`);
   }
-  if (node.required !== undefined && (!Array.isArray(node.required) || !node.required.every((field) => typeof field === "string"))) {
-    throw new Error(`Schema node ${path}/required must be an array of strings.`);
+  if (
+    node.required !== undefined &&
+    (!Array.isArray(node.required) ||
+      !node.required.every((field) => typeof field === "string"))
+  ) {
+    throw new Error(
+      `Schema node ${path}/required must be an array of strings.`,
+    );
   }
   if (node.enum !== undefined && !Array.isArray(node.enum)) {
     throw new Error(`Schema node ${path}/enum must be an array.`);
@@ -221,15 +240,23 @@ function assertSchemaNode(node, path) {
     node.additionalProperties !== undefined &&
     typeof node.additionalProperties !== "boolean"
   ) {
-    throw new Error(`Schema node ${path}/additionalProperties must be boolean or schema.`);
+    throw new Error(
+      `Schema node ${path}/additionalProperties must be boolean or schema.`,
+    );
   }
   if (node.propertyNames !== undefined) {
     if (!isObject(node.propertyNames)) {
       throw new Error(`Schema node ${path}/propertyNames must be an object.`);
     }
-    assertOnlyKeys(node.propertyNames, new Set(["pattern"]), `${path}/propertyNames`);
+    assertOnlyKeys(
+      node.propertyNames,
+      new Set(["pattern"]),
+      `${path}/propertyNames`,
+    );
     if (typeof node.propertyNames.pattern !== "string") {
-      throw new Error(`Schema node ${path}/propertyNames/pattern must be a string.`);
+      throw new Error(
+        `Schema node ${path}/propertyNames/pattern must be a string.`,
+      );
     }
   }
 }
@@ -324,7 +351,9 @@ function typescriptType(node) {
     case "string":
       return "string";
     default:
-      throw new Error(`Unsupported TypeScript schema node: ${JSON.stringify(node)}`);
+      throw new Error(
+        `Unsupported TypeScript schema node: ${JSON.stringify(node)}`,
+      );
   }
 }
 
@@ -347,16 +376,20 @@ function renderRust() {
           attributes.push(`    #[serde(rename = "${propertyName}")]`);
         }
         if (!isRequired) {
-          attributes.push("    #[serde(skip_serializing_if = \"Option::is_none\")]");
+          attributes.push(
+            '    #[serde(skip_serializing_if = "Option::is_none")]',
+          );
         }
 
         const fieldType = isRequired ? type : `Option<${type}>`;
-        return [...attributes, `    pub ${fieldName}: ${fieldType},`].join("\n");
+        return [...attributes, `    pub ${fieldName}: ${fieldType},`].join(
+          "\n",
+        );
       });
 
     return [
       "#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]",
-      "#[serde(rename_all = \"camelCase\", deny_unknown_fields)]",
+      '#[serde(rename_all = "camelCase", deny_unknown_fields)]',
       `pub struct ${name} {`,
       ...fields,
       "}",
@@ -429,14 +462,18 @@ const renderedOutputs = new Map([
 
 let hasStaleOutput = false;
 for (const [outputPath, output] of renderedOutputs) {
-  const current = existsSync(outputPath) ? readFileSync(outputPath, "utf8") : null;
+  const current = existsSync(outputPath)
+    ? readFileSync(outputPath, "utf8")
+    : null;
   if (current === output) {
     continue;
   }
 
   if (checkOnly) {
     hasStaleOutput = true;
-    process.stderr.write(`Generated file is stale: ${relative(repositoryRoot, outputPath)}\n`);
+    process.stderr.write(
+      `Generated file is stale: ${relative(repositoryRoot, outputPath)}\n`,
+    );
     continue;
   }
 

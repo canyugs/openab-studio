@@ -13,6 +13,12 @@ Use `pnpm schemas:generate` after changing the source or generator. Never hand-e
 `pnpm schemas:check` is a clean-diff reproducibility proof: each generated header includes the exact
 source and generator digests, and the command fails if regeneration differs.
 
+`pnpm format` and `pnpm format:check` use the root-pinned Prettier for every human-authored
+TypeScript file in `typescript/` and the generator/harness MJS sources. They intentionally do not
+run Prettier on `generated/typescript/`: it is byte-for-byte output of the canonical source and
+generator, so `pnpm schemas:check` is its deterministic formatting and drift check. Regenerate
+instead of formatting generated bindings manually.
+
 `pnpm contracts:verify` is the full shared-contract gate. It verifies generated output, then runs the
 same fixtures through Rust and compiled TypeScript validators, compatibility selection, migrations,
 and serialization round trips. The negative fixtures must remain: a strict unknown base field is

@@ -176,8 +176,12 @@ jobs:
         include:
           - label: phone
             profile: pixel_7
+            ram_size: ""
+            heap_size: ""
           - label: tablet
             profile: pixel_tablet
+            ram_size: 2048M
+            heap_size: "256"
     env:
       ANDROID_PACKAGE: dev.openab.studio
     steps:
@@ -213,6 +217,7 @@ jobs:
             java -version
             sdkmanager --version
             df -h .
+            free -h
             printf '\n-- downloaded APKs --\n'
             find android-build -type f -name '*.apk' -print | sort
             printf '\n-- downloaded APK checksums --\n'
@@ -234,6 +239,8 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: ${{ matrix.profile }}
+          ram-size: ${{ matrix.ram_size }}
+          heap-size: ${{ matrix.heap_size }}
           avd-name: openab-studio-${{ matrix.label }}
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           # This action executes each literal input line in a new shell. Keep the nested probe folded into one line.

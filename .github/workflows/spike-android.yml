@@ -138,13 +138,13 @@ jobs:
               printf 'apk=%s\n' "$apk"
               "$aapt" dump badging "$apk"
               printf '\n-- native libraries --\n'
-              unzip -l "$apk" | rg 'lib/.+\.so$' || true
+              unzip -l "$apk" | grep -E 'lib/.+\.so$' || true
               printf '\n-- signature verification --\n'
               "$apksigner" verify --verbose --print-certs "$apk"
             } > "evidence/android/build/$name.txt"
           done < evidence/android/build/apk-paths.txt
 
-          x86_apk="$(rg --files -g '*x86_64*.apk' apps/studio/src-tauri/gen/android/app/build/outputs | head -n 1)"
+          x86_apk="$(find apps/studio/src-tauri/gen/android/app/build/outputs -type f -name '*x86_64*.apk' -print -quit)"
           test -n "$x86_apk"
           printf '%s\n' "$x86_apk" > evidence/android/build/x86_64-apk-path.txt
 
@@ -189,7 +189,7 @@ jobs:
             adb shell uiautomator dump /sdcard/openab-studio-phone-foreground.xml
             adb pull /sdcard/openab-studio-phone-foreground.xml "$evidence_dir/foreground-window.xml"
             adb exec-out screencap -p > "$evidence_dir/foreground.png"
-            if rg --fixed-strings 'Trusted core ready (protocol 1).' "$evidence_dir/foreground-window.xml"; then
+            if grep -F 'Trusted core ready (protocol 1).' "$evidence_dir/foreground-window.xml"; then
               printf 'uiautomator exposed the typed Rust/TypeScript seam text.\n' > "$evidence_dir/typed-seam.txt"
             else
               printf 'The WebView accessibility tree did not expose the typed seam text; inspect foreground.png with the launch/activity evidence.\n' > "$evidence_dir/typed-seam.txt"
@@ -260,7 +260,7 @@ jobs:
             adb shell uiautomator dump /sdcard/openab-studio-tablet-foreground.xml
             adb pull /sdcard/openab-studio-tablet-foreground.xml "$evidence_dir/foreground-window.xml"
             adb exec-out screencap -p > "$evidence_dir/foreground.png"
-            if rg --fixed-strings 'Trusted core ready (protocol 1).' "$evidence_dir/foreground-window.xml"; then
+            if grep -F 'Trusted core ready (protocol 1).' "$evidence_dir/foreground-window.xml"; then
               printf 'uiautomator exposed the typed Rust/TypeScript seam text.\n' > "$evidence_dir/typed-seam.txt"
             else
               printf 'The WebView accessibility tree did not expose the typed seam text; inspect foreground.png with the launch/activity evidence.\n' > "$evidence_dir/typed-seam.txt"

@@ -101,7 +101,7 @@ jobs:
             | tee evidence/generated-build-settings.txt
           git status --short | tee evidence/worktree-after-generation.txt
 
-      - name: Select and boot fresh iPhone and iPad simulators
+      - name: Select and boot runner-local iPhone and iPad simulators
         shell: bash
         run: |
           set -euo pipefail
@@ -111,11 +111,11 @@ jobs:
           const simulators = JSON.parse(
             execFileSync(
               "xcrun",
-              ["simctl", "list", "-j", "runtimes", "devicetypes"],
+              ["simctl", "list", "-j", "runtimes", "devices"],
               { encoding: "utf8" },
             ),
           );
-          const runtime = simulators.runtimes
+          const runtimes = simulators.runtimes
             .filter(
               (candidate) =>
                 candidate.isAvailable &&
@@ -125,47 +125,74 @@ jobs:
             )
             .sort((left, right) =>
               right.version.localeCompare(left.version, undefined, { numeric: true }),
-            )[0];
-          const chooseDeviceType = (prefix) => {
-            const deviceType = simulators.devicetypes.find((candidate) =>
-              candidate.name.startsWith(prefix),
             );
-            if (!deviceType) {
-              throw new Error(`No ${prefix} simulator device type is installed.`);
-            }
-            return deviceType;
-          };
-
+          const hasSimulator = (runtime, prefix) =>
+            (simulators.devices[runtime.identifier] ?? []).some(
+              (candidate) =>
+                candidate.isAvailable !== false && candidate.name.startsWith(prefix),
+            );
+          const runtime = runtimes.find(
+            (candidate) =>
+              hasSimulator(candidate, "iPhone") && hasSimulator(candidate, "iPad"),
+          );
           if (!runtime) {
-            throw new Error("No available iOS simulator runtime is installed.");
+            throw new Error("No available iOS runtime has both iPhone and iPad simulators.");
           }
 
-          const iphone = chooseDeviceType("iPhone");
-          const ipad = chooseDeviceType("iPad");
+          const runtimeDevices = simulators.devices[runtime.identifier] ?? [];
+          const chooseSimulator = (prefix) => {
+            const simulator = runtimeDevices.find(
+              (candidate) =>
+                candidate.isAvailable !== false && candidate.name.startsWith(prefix),
+            );
+            if (!simulator) {
+              throw new Error(
+                `No available ${prefix} simulator is installed for ${runtime.name}.`,
+              );
+            }
+            return simulator;
+          };
+
+          const iphone = chooseSimulator("iPhone");
+          const ipad = chooseSimulator("iPad");
           for (const [key, value] of Object.entries({
             IOS_RUNTIME: runtime.identifier,
             IOS_RUNTIME_NAME: runtime.name,
-            IPHONE_TYPE: iphone.identifier,
-            IPHONE_TYPE_NAME: iphone.name,
-            IPAD_TYPE: ipad.identifier,
-            IPAD_TYPE_NAME: ipad.name,
+            IPHONE_UDID: iphone.udid,
+            IPHONE_ORIGINAL_NAME: iphone.name,
+            IPHONE_INITIAL_STATE: iphone.state,
+            IPAD_UDID: ipad.udid,
+            IPAD_ORIGINAL_NAME: ipad.name,
+            IPAD_INITIAL_STATE: ipad.state,
           })) {
             console.log(`${key}=${JSON.stringify(value)}`);
           }
           NODE
           source evidence/simulator-selection.env
           cat evidence/simulator-selection.env | tee evidence/simulator-selection.txt
-          IPHONE_UDID="$(xcrun simctl create "OpenAB Studio iPhone ${GITHUB_RUN_ID}" "${IPHONE_TYPE}" "${IOS_RUNTIME}")"
-          IPAD_UDID="$(xcrun simctl create "OpenAB Studio iPad ${GITHUB_RUN_ID}" "${IPAD_TYPE}" "${IOS_RUNTIME}")"
-          xcrun simctl boot "${IPHONE_UDID}"
-          xcrun simctl boot "${IPAD_UDID}"
-          xcrun simctl bootstatus "${IPHONE_UDID}" -b
-          xcrun simctl bootstatus "${IPAD_UDID}" -b
+          IPHONE_NAME="OpenAB Studio iPhone ${GITHUB_RUN_ID}"
+          IPAD_NAME="OpenAB Studio iPad ${GITHUB_RUN_ID}"
+          xcrun simctl rename "${IPHONE_UDID}" "${IPHONE_NAME}"
+          xcrun simctl rename "${IPAD_UDID}" "${IPAD_NAME}"
+          boot_simulator() {
+            local label="$1"
+            local udid="$2"
+            if ! xcrun simctl boot "${udid}" 2>&1 | tee -a evidence/simulator-boot.txt; then
+              if ! xcrun simctl list devices | rg -F "${udid}" | rg -q "(Booted)"; then
+                echo "${label} simulator did not boot: ${udid}" >&2
+                return 1
+              fi
+            fi
+            perl -e 'alarm shift; exec @ARGV' 240 xcrun simctl bootstatus "${udid}" -b 2>&1 \
+              | tee -a evidence/simulator-boot.txt
+          }
+          boot_simulator "iPhone" "${IPHONE_UDID}"
+          boot_simulator "iPad" "${IPAD_UDID}"
           {
             printf 'IPHONE_UDID=%s\n' "${IPHONE_UDID}"
             printf 'IPAD_UDID=%s\n' "${IPAD_UDID}"
-            printf 'IPHONE_NAME=OpenAB Studio iPhone %s\n' "${GITHUB_RUN_ID}"
-            printf 'IPAD_NAME=OpenAB Studio iPad %s\n' "${GITHUB_RUN_ID}"
+            printf 'IPHONE_NAME=%s\n' "${IPHONE_NAME}"
+            printf 'IPAD_NAME=%s\n' "${IPAD_NAME}"
           } | tee -a evidence/simulator-selection.txt >> "${GITHUB_ENV}"
 
       - name: Build and foreground-launch the typed seam on iPhone and iPad

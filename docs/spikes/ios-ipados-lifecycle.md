@@ -24,10 +24,11 @@ local `mcp-stdio` executables. That distinction follows the
 
 Run [`.github/workflows/spike-ios.yml`](../../.github/workflows/spike-ios.yml) with
 `workflow_dispatch`, or let its scoped pull-request trigger run. It uses a disposable `macos-15`
-runner and creates new iPhone and iPad simulators from the newest available iOS runtime and installed
-device types. The runner records its exact macOS, Xcode, simulator SDK, Rust, Node, pnpm, Tauri CLI,
-CocoaPods, device type, and runtime versions in the artifact rather than assuming a stable runner
-image.
+ runner and selects its installed iPhone and iPad simulators from the newest available iOS runtime
+ that has both form factors.
+ The runner is disposable, so those simulator instances are still ephemeral. It records its exact
+ macOS, Xcode, simulator SDK, Rust, Node, pnpm, Tauri CLI, CocoaPods, selected device model/runtime,
+ and initial simulator state in the artifact rather than assuming a stable runner image.
 
 The initial run on `macos-14` is retained as a failed evidence artifact: it generated the Apple
 project and booted both ARM simulators, but its Xcode 15.4 failed to open the generated project-file
@@ -41,7 +42,8 @@ is absent, the pinned gem is installed only on that disposable runner. The workf
 
 1. adds only `aarch64-apple-ios-sim` and initializes the native project with
    `tauri ios init --ci --skip-targets-install`;
-2. boots fresh iPhone and iPad simulators;
+2. gives selected runner-local iPhone and iPad simulators unique disposable names, then boots them
+   serially with an explicit readiness bound;
 3. uses the pinned local Tauri CLI to run the existing app on the iPhone simulator;
 4. captures a foreground iPhone screenshot after the app is installed, then installs and launches
    the same simulator app on iPad and captures an iPad screenshot; and
@@ -59,8 +61,8 @@ the current TypeScript UI rendered the result of its `workspace_bootstrap` Tauri
 | Area | Automated evidence | What it establishes | What it does not establish |
 |---|---|---|---|
 | Rust/TypeScript seam | The foreground screenshots from both simulators show the current UI's `workspace_bootstrap` result. | The generated native shell can render the existing typed command boundary on the selected simulator runtime. | A management API mutation, ACP session, auth, storage, or reconnection flow. |
-| iPhone | A newly created iPhone simulator receives the generated app and has a foreground screenshot. | Phone simulator build/install/launch for the selected device type. | Small-screen usability, accessibility, one-handed flow, interruption recovery, cellular behavior, or physical-phone behavior. |
-| iPad | The same generated simulator app is installed, launched, and captured on a newly created iPad simulator. | Tablet simulator install/launch and the common shell's basic runtime path. | Adaptive/dense management UI, rotation, Split View, Stage Manager, external display, keyboard/trackpad, or physical-iPad behavior. |
+| iPhone | A selected runner-local iPhone simulator receives the generated app and has a foreground screenshot. | Phone simulator build/install/launch for the recorded device model/runtime. | Small-screen usability, accessibility, one-handed flow, interruption recovery, cellular behavior, or physical-phone behavior. |
+| iPad | The same generated simulator app is installed, launched, and captured on a selected runner-local iPad simulator. | Tablet simulator install/launch and the common shell's basic runtime path. | Adaptive/dense management UI, rotation, Split View, Stage Manager, external display, keyboard/trackpad, or physical-iPad behavior. |
 | Termination and cold relaunch | `simctl terminate` succeeds, followed by `simctl launch` and a relaunch screenshot. | The simulator accepts a process termination and the app can be launched again from a cold process. | State persistence, graceful lifecycle callbacks, pending-mutation recovery, or transport reconnection. |
 | Background/foreground transition | No artificial background transition is attempted. | Nothing beyond the foreground launch above. | Background suspension, resume, WebSocket survival, background task scheduling, push wake-up, or reconnect behavior. These remain unmeasured. |
 | Reconnect | The bootstrap shell currently has no Fleet Management API or ACP-over-WebSocket transport. | Nothing; the absence is explicit. | Network-loss recovery or session resume. That needs the future transport/state-machine work and a physical-device experiment. |
@@ -82,8 +84,8 @@ stronger lifecycle claim would be evidence-based.
 | Minimum OS / architecture | The artifact includes the generated Xcode `IPHONEOS_DEPLOYMENT_TARGET`/`ARCHS` settings plus the built simulator executable's `lipo` result. The hosted runner and simulator runtime are recorded exactly. | Those values describe one generated build, not an accepted support tier. Physical iPhone/iPad is expected to be arm64; x86_64 simulator and a physical device remain untested. R-04 owns a release-tier decision. |
 
 No credential, certificate, Apple account, physical-device identifier, production endpoint, or
-notification token is used by the workflow. The artifact records only the ephemeral simulator IDs it
-creates. Generated native files and app artifacts are retained only in the short-lived Actions
+notification token is used by the workflow. The artifact records only the disposable runner's
+simulator IDs. Generated native files and app artifacts are retained only in the short-lived Actions
 evidence artifact.
 
 ## Feasibility criteria and residual blockers

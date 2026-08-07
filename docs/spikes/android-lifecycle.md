@@ -3,14 +3,16 @@
 - **Issue:** [#13](https://github.com/canyugs/openab-studio/issues/13)
 - **Scope:** P0 build-and-launch feasibility for the existing typed `workspace_bootstrap` Rust/TypeScript seam.
 - **Evidence workflow:** [Android lifecycle spike](https://github.com/canyugs/openab-studio/actions/workflows/spike-android.yml)
-- **Decision status:** pending the first hosted-runner result.
+- **Decision status:** pending the first fully successful hosted build, phone lifecycle, and tablet lifecycle run.
 
 ## Boundary
 
-This spike deliberately changes neither the product shell nor Android source. The workflow creates
+This spike deliberately changes neither the product shell nor Android source. The build job creates
 `apps/studio/src-tauri/gen/android` only on a disposable GitHub-hosted runner, builds it, captures
-evidence, and lets the runner disappear. Generated Android source, build outputs, AVD state, debug
-keys, SDK/NDK/JDK setup, and emulators are never committed and are never created on a developer host.
+build evidence, and lets that runner disappear. Separate, fresh GitHub-hosted runners download only
+the inspected APK artifact to exercise the phone and tablet emulators. Generated Android source,
+build outputs, AVD state, debug keys, SDK/NDK/JDK setup, and emulators are never committed and are
+never created on a developer host.
 
 The exact seam under test is intentionally narrow:
 
@@ -27,24 +29,45 @@ does not prove a Fleet, ACP, storage, credential, plugin, or full-management wor
 ## Reproducible hosted procedure
 
 The `Android lifecycle spike` workflow uses a read-only checkout with credentials disabled and no
-dependency, Gradle, or AVD cache. Every action is commit-SHA pinned. It uses an Ubuntu 24.04
-GitHub-hosted runner, Rust 1.85, Node 22.12.0, pnpm 10.29.2, Temurin JDK 21, Android API 35,
-build-tools 35.0.0, NDK 27.2.12479018, and Google APIs x86_64 emulators.
+dependency, Gradle, or AVD cache. Every action is commit-SHA pinned. Its `build-apks` job uses an
+Ubuntu 24.04 GitHub-hosted runner, Rust 1.85, Node 22.12.0, pnpm 10.29.2, Temurin JDK 21, Android
+SDK platform 35, build-tools 35.0.0, and NDK 27.2.12479018.
 
-The runner:
+The build job:
 
 1. installs all four Tauri Android Rust targets and generates the Android project with
    `tauri android init --ci --skip-targets-install`;
 2. builds debug, split APKs for `aarch64`, `armv7`, `i686`, and `x86_64`;
-3. launches the x86_64 APK on distinct Pixel 7 (phone) and Pixel Tablet (tablet) AVD profiles;
-4. captures a foreground launch screenshot/activity dump, Home/background process/task state,
-   foreground return, force-stop process absence, and cold relaunch; and
-5. captures emitted manifest/Gradle metadata, per-APK native libraries, SDK/target metadata,
-   debug-signing verification, package data, a deep-link attempt, logcat, and source-tree status.
+3. archives generated Gradle and manifest metadata, each APK's native libraries and debug-signing
+   verification, paths, checksums, and source-tree boundary; and
+4. uploads the APKs and build evidence as `android-build-spike-<run-id>` for 14 days.
 
-The artifact is named `android-lifecycle-spike-<run-id>` and is retained for 14 days. It includes no
-release or debug private key. A debug certificate fingerprint may appear in `apksigner` output and
-is evidence only, not a signing identity.
+The independent `phone` and `tablet` lifecycle jobs each receive that artifact at `android-build`,
+set up only JDK 21 plus the emulator's Android platform tools/API 35, and launch the x86_64 APK on
+one fresh Google APIs AVD: Pixel 7 or Pixel Tablet. They capture a foreground launch
+screenshot/activity dump, Home/background process/task state, foreground return, force-stop process
+absence, cold relaunch, package data, a deep-link attempt, and logcat. Each job emits its own
+`android-lifecycle-<phone|tablet>-<run-id>` artifact for 14 days.
+
+The runner boundary is intentional: the first post-build attempt showed that cold four-ABI
+compilation plus emulator installation can exhaust an Ubuntu runner's disk. Lifecycle jobs therefore
+do not check out the repository, generate Android source, install an NDK, or compile. The handoff
+records the downloaded APK checksums and free disk before the AVD starts.
+
+Artifacts include no release or debug private key. A debug certificate fingerprint may appear in
+`apksigner` output and is evidence only, not a signing identity.
+
+## Hosted attempts before the split
+
+| Run                                                                              | Result                                                                                                                 | Evidence retained                                                                                                               | What it establishes                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [31149533175](https://github.com/canyugs/openab-studio/actions/runs/31149533175) | Built all four split debug APKs, then stopped before emulator setup because `rg` was absent on the Ubuntu 24.04 image. | `android-lifecycle-spike-31149533175`, artifact [8983019262](https://github.com/canyugs/openab-studio/actions/runs/31149533175) | Tauri generation and the ABI build reached the inspection step; no phone/tablet lifecycle evidence. The unsupported `rg` invocation was replaced with portable `grep`/`find` in `638b809`.                     |
+| [31150001027](https://github.com/canyugs/openab-studio/actions/runs/31150001027) | Built and inspected all four ABIs, then Android Emulator package preparation failed with `No space left on device`.    | `android-lifecycle-spike-31150001027`, artifact [8983166697](https://github.com/canyugs/openab-studio/actions/runs/31150001027) | This is a hosted disk/tooling failure, not app lifecycle evidence: no AVD booted and neither foreground/background/termination/relaunch behavior was measured. It motivated the fresh-runner artifact handoff. |
+
+Both attempts used the generated package `dev.openab.studio`; the emitted Gradle metadata observed
+`minSdk=24`, `compileSdk=36`, and `targetSdk=36`. The AVD test image is API 35. These are distinct
+facts: SDK platform 35 in setup and the API 35 emulator do not by themselves select a release SDK
+tier, while the generated Gradle metadata is the source of truth for its observed build SDK values.
 
 ## Evidence interpretation
 
@@ -84,10 +107,10 @@ dump are archived so any generated `INTERNET` declaration is visible, but a decl
 networking behavior.
 
 There is no committed Android intent-filter/deep-link configuration. The workflow records an
-`openab-studio://spike` launch attempt as a negative configuration check; it does not claim
-deep-link support. There is also no notification permission request, notification adapter, or
-notification delivery path in the current seam, so the spike records this as unimplemented rather
-than manufacturing a notification test.
+`openab-studio://spike` launch attempt as a negative configuration check; it does not claim deep-link
+support. There is also no notification permission request, notification adapter, or notification
+delivery path in the current seam, so the spike records this as unimplemented rather than
+manufacturing a notification test.
 
 ### API level, device class, and vendor lifecycle
 
@@ -103,10 +126,10 @@ tablet or phone management UI.
 
 ## Decision rule and residual blockers
 
-A green hosted run makes Tauri Android **feasible for the current P0 typed-boundary build and
-x86_64-emulator launch only**. It does not accept an Android support tier or a P5/P6 release. A
-failed run is retained with its logs/artifact and identifies the next reproducible host/toolchain or
-Tauri boundary to investigate.
+A green hosted build job plus both green lifecycle jobs makes Tauri Android **feasible for the
+current P0 typed-boundary build and x86_64-emulator launch only**. It does not accept an Android
+support tier or a P5/P6 release. A failed run is retained with its logs/artifact and identifies the
+next reproducible host/toolchain or Tauri boundary to investigate.
 
 Before Android tablet or phone release claims, the project still needs separately owned proof for:
 

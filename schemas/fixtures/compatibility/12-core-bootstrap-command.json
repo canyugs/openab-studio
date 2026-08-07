@@ -1,0 +1,13 @@
+{
+  "kind": "validation",
+  "name": "workspace-bootstrap-command-is-strict-and-valid",
+  "definition": "WorkspaceBootstrapCommand",
+  "knownExtensions": [],
+  "input": {
+    "kind": "workspace-bootstrap",
+    "requestId": "req_fixture_bootstrap"
+  },
+  "expect": {
+    "valid": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "validation",
+  "name": "unknown-core-command-kind-fails-closed",
+  "definition": "WorkspaceBootstrapCommand",
+  "knownExtensions": [],
+  "input": {
+    "kind": "future-command",
+    "requestId": "req_fixture_unknown"
+  },
+  "expect": {
+    "valid": false,
+    "code": "schema-const-mismatch"
+  }
+}

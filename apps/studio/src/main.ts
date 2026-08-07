@@ -1,13 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { WorkspaceBootstrapResult } from "../../../schemas/generated/typescript/studio-protocol";
 
 import "./styles.css";
-
-type BootstrapStatus = "ready";
-
-interface WorkspaceBootstrap {
-  protocolVersion: number;
-  status: BootstrapStatus;
-}
 
 const bootstrapStatusElement =
   document.querySelector<HTMLElement>("#bootstrap-status");
@@ -20,8 +14,12 @@ const bootstrapStatus: HTMLElement = bootstrapStatusElement;
 
 async function verifyTrustedCoreBoundary(): Promise<void> {
   try {
-    const result = await invoke<WorkspaceBootstrap>("workspace_bootstrap");
-    bootstrapStatus.textContent = `Trusted core ${result.status} (protocol ${result.protocolVersion}).`;
+    const requestId = `req_${crypto.randomUUID()}`;
+    const result = await invoke<WorkspaceBootstrapResult>(
+      "workspace_bootstrap",
+      { requestId },
+    );
+    bootstrapStatus.textContent = `Trusted core ${result.workspaceBootstrap.status} (protocol ${result.workspaceBootstrap.protocolVersion}).`;
   } catch (error) {
     bootstrapStatus.textContent = "Unable to reach the trusted core.";
     console.error("workspace_bootstrap command failed", error);

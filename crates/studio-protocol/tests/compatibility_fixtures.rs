@@ -2,9 +2,9 @@ use std::{fs, path::PathBuf};
 
 use serde_json::{Map, Value};
 use studio_protocol::{
-    CompatibilityPeer, CompatibilityRequest, decide_compatibility, migrate_plugin_manifest,
-    parse_plugin_manifest, parse_shared_contract_document, parse_with_definition,
-    validate_definition,
+    CompatibilityPeer, CompatibilityRequest, CoreErrorEnvelope, WorkspaceBootstrapResult,
+    decide_compatibility, migrate_plugin_manifest, parse_plugin_manifest,
+    parse_shared_contract_document, parse_with_definition, validate_definition,
 };
 
 #[test]
@@ -65,11 +65,33 @@ fn compatibility_and_validation_fixtures_match_the_policy() {
             }
             Some("roundtrip") => {
                 let known_extensions = known_extensions(&fixture);
-                let parsed =
-                    parse_shared_contract_document(fixture["input"].clone(), &known_extensions)
-                        .expect("round-trip fixture must validate and deserialize");
-                let actual =
-                    serde_json::to_value(parsed).expect("generated binding must serialize");
+                let definition = fixture["definition"]
+                    .as_str()
+                    .expect("round-trip fixture definition must be a string");
+                let actual = match definition {
+                    "SharedContractDocument" => serde_json::to_value(
+                        parse_shared_contract_document(fixture["input"].clone(), &known_extensions)
+                            .expect("shared contract round-trip fixture must deserialize"),
+                    ),
+                    "WorkspaceBootstrapResult" => serde_json::to_value(
+                        parse_with_definition::<WorkspaceBootstrapResult>(
+                            definition,
+                            fixture["input"].clone(),
+                            &known_extensions,
+                        )
+                        .expect("bootstrap result round-trip fixture must deserialize"),
+                    ),
+                    "CoreErrorEnvelope" => serde_json::to_value(
+                        parse_with_definition::<CoreErrorEnvelope>(
+                            definition,
+                            fixture["input"].clone(),
+                            &known_extensions,
+                        )
+                        .expect("core error round-trip fixture must deserialize"),
+                    ),
+                    other => panic!("unsupported round-trip definition {other}"),
+                }
+                .expect("generated binding must serialize");
 
                 assert_eq!(
                     canonicalize(actual),

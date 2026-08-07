@@ -1,0 +1,14 @@
+{
+  "kind": "roundtrip",
+  "name": "unauthorized-core-error-round-trips",
+  "definition": "CoreErrorEnvelope",
+  "knownExtensions": [],
+  "input": {
+    "category": "unauthorized",
+    "code": "core.authorization.denied",
+    "message": "The operation is not authorized.",
+    "requestId": "req_error_unauthorized",
+    "operationId": "op_error_unauthorized",
+    "retryable": false
+  }
+}

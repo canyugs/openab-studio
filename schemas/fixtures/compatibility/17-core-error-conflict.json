@@ -1,0 +1,14 @@
+{
+  "kind": "roundtrip",
+  "name": "conflict-core-error-round-trips",
+  "definition": "CoreErrorEnvelope",
+  "knownExtensions": [],
+  "input": {
+    "category": "conflict",
+    "code": "core.revision.conflict",
+    "message": "The operation conflicts with newer state.",
+    "requestId": "req_error_conflict",
+    "operationId": "op_error_conflict",
+    "retryable": false
+  }
+}

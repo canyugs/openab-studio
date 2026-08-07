@@ -1,0 +1,11 @@
+[package]
+name = "studio-protocol"
+description = "Generated OpenAB Studio shared-schema bindings and compatibility harness"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

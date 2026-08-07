@@ -1,0 +1,11 @@
+{
+  "kind": "migration",
+  "name": "unknown-legacy-plugin-version-is-rejected",
+  "knownExtensions": [],
+  "input": {
+    "schemaVersion": "studio.openab.dev/v0alpha9"
+  },
+  "expect": {
+    "error": "schema-migration-unavailable"
+  }
+}

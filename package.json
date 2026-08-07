@@ -9,14 +9,25 @@
   "scripts": {
     "build": "pnpm --filter @openab/studio run build && cargo build --workspace",
     "check": "cargo check --workspace && pnpm --filter @openab/studio run check",
-    "format": "cargo fmt --all && pnpm --filter @openab/studio run format",
-    "format:check": "cargo fmt --all -- --check && pnpm --filter @openab/studio run format:check",
+    "contracts:verify": "pnpm schemas:check && cargo test -p studio-protocol --test compatibility_fixtures && pnpm schemas:test:typescript",
+    "format": "cargo fmt --all && pnpm format:schema-sources && pnpm --filter @openab/studio run format",
+    "format:check": "cargo fmt --all -- --check && pnpm format:schema-sources:check && pnpm --filter @openab/studio run format:check",
+    "format:schema-sources": "prettier --write package.json scripts/generate-schemas.mjs scripts/test-typescript-contract-fixtures.mjs schemas/typescript",
+    "format:schema-sources:check": "prettier --check package.json scripts/generate-schemas.mjs scripts/test-typescript-contract-fixtures.mjs schemas/typescript",
+    "schemas:check": "node scripts/generate-schemas.mjs --check",
+    "schemas:generate": "node scripts/generate-schemas.mjs",
+    "schemas:test:typescript": "node scripts/test-typescript-contract-fixtures.mjs",
     "tauri:android:dev": "pnpm --filter @openab/studio run tauri:android:dev",
     "tauri:android:init": "pnpm --filter @openab/studio run tauri:android:init",
     "tauri:desktop:build": "pnpm --filter @openab/studio run tauri:desktop:build",
     "tauri:desktop:dev": "pnpm --filter @openab/studio run tauri:desktop:dev",
     "tauri:ios:dev": "pnpm --filter @openab/studio run tauri:ios:dev",
     "tauri:ios:init": "pnpm --filter @openab/studio run tauri:ios:init",
-    "test": "cargo test --workspace"
+    "test": "cargo test --workspace && pnpm schemas:test:typescript"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2"
   }
 }

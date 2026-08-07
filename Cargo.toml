@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/studio-core", "apps/studio/src-tauri"]
+members = ["crates/studio-core", "crates/studio-protocol", "apps/studio/src-tauri"]
 resolver = "3"
 
 [workspace.package]
@@ -10,5 +10,6 @@ version = "0.1.0"
 
 [workspace.dependencies]
 serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
 tauri = { version = "=2.11.5", features = [] }
 tauri-build = { version = "=2.6.3", features = [] }

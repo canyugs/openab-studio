@@ -1,0 +1,170 @@
+{
+  "kind": "roundtrip",
+  "name": "all-shared-contract-types-round-trip-without-loss",
+  "definition": "SharedContractDocument",
+  "knownExtensions": [],
+  "input": {
+    "fleet": {
+      "id": "flt_demo",
+      "displayName": "Demo Fleet",
+      "revision": "fr_42"
+    },
+    "instance": {
+      "id": "inst_demo",
+      "fleetId": "flt_demo",
+      "displayName": "Demo OpenAB",
+      "discoveryUrl": "https://runner.example.invalid/.well-known/openab-fleet-management",
+      "status": "ready"
+    },
+    "principals": [
+      {
+        "id": "usr_demo",
+        "fleetId": "flt_demo",
+        "kind": "user",
+        "displayName": "Demo User",
+        "deviceId": "dev_demo"
+      }
+    ],
+    "resources": [
+      {
+        "id": "res_demo",
+        "fleetId": "flt_demo",
+        "type": "studio.openab.dev/memory-reference",
+        "ownerPrincipalId": "usr_demo",
+        "revision": "rrev_1",
+        "actions": [
+          "read",
+          "delete"
+        ],
+        "attributes": {
+          "region": "test"
+        }
+      }
+    ],
+    "grants": [
+      {
+        "id": "grt_demo",
+        "fleetId": "flt_demo",
+        "principalId": "usr_demo",
+        "resourceSelector": {
+          "resourceType": "studio.openab.dev/memory-reference",
+          "resourceIds": [
+            "res_demo"
+          ],
+          "attributes": {
+            "region": "test"
+          }
+        },
+        "actions": [
+          "read"
+        ],
+        "issuerPrincipalId": "usr_owner",
+        "revision": "grev_1",
+        "conditions": {
+          "deviceId": "dev_demo"
+        }
+      }
+    ],
+    "memoryReferences": [
+      {
+        "id": "mem_demo",
+        "fleetId": "flt_demo",
+        "scope": "fleet",
+        "providerId": "dev.openab.memory",
+        "providerReference": "provider://demo/42",
+        "provenance": "fixture",
+        "retention": "30d",
+        "revision": "mrev_1",
+        "visibility": "fleet-members"
+      }
+    ],
+    "pluginManifest": {
+      "schemaVersion": "studio.openab.dev/v1alpha1",
+      "id": "dev.openab.echo",
+      "name": "Echo",
+      "version": "0.1.0",
+      "compatibility": {
+        "contracts": [
+          {
+            "family": "studio.openab.dev/plugin-manifest",
+            "major": 1,
+            "minMinor": 0,
+            "maxMinor": 0
+          }
+        ],
+        "requiredCapabilities": [
+          "studio.openab.dev/plugin/mcp-http"
+        ]
+      },
+      "platforms": [
+        "desktop",
+        "mobile"
+      ],
+      "runtime": {
+        "placement": "remote",
+        "transport": "mcp-http",
+        "entrypoint": "https://example.invalid/mcp",
+        "health": {
+          "kind": "http",
+          "endpoint": "https://example.invalid/health",
+          "intervalSeconds": 30
+        }
+      },
+      "contributes": {
+        "tools": [
+          "echo"
+        ]
+      },
+      "permissions": {
+        "network": {
+          "allow": [
+            "example.invalid"
+          ]
+        },
+        "resources": {
+          "read": []
+        },
+        "secrets": {
+          "use": []
+        }
+      },
+      "resourceLimits": {
+        "cpuMillis": 100,
+        "memoryMiB": 64,
+        "maxResultBytes": 1024,
+        "maxDurationSeconds": 30
+      },
+      "migration": {
+        "supportedFromSchemaVersions": [
+          "studio.openab.dev/v1alpha0"
+        ]
+      }
+    },
+    "capabilities": [
+      {
+        "id": "studio.openab.dev/fleet/grants-revisioned-mutations",
+        "version": "v1alpha1",
+        "required": true,
+        "parametersSchema": {
+          "type": "object"
+        }
+      }
+    ],
+    "auditEnvelope": {
+      "id": "aud_demo",
+      "fleetId": "flt_demo",
+      "actorPrincipalId": "usr_demo",
+      "action": "memory.read",
+      "targetResourceIds": [
+        "res_demo"
+      ],
+      "requestId": "req_demo",
+      "occurredAt": "2026-08-07T12:00:00Z",
+      "outcome": "accepted",
+      "redactedDigest": "sha256:fixture",
+      "details": {
+        "redacted": true
+      }
+    }
+  }
+}

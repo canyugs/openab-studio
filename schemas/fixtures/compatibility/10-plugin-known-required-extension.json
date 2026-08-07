@@ -1,0 +1,76 @@
+{
+  "kind": "validation",
+  "name": "known-required-extension-is-accepted",
+  "definition": "PluginManifest",
+  "knownExtensions": [
+    "io.example.encrypted-state"
+  ],
+  "input": {
+    "schemaVersion": "studio.openab.dev/v1alpha1",
+    "id": "io.example.echo",
+    "name": "Echo",
+    "version": "0.1.0",
+    "compatibility": {
+      "contracts": [
+        {
+          "family": "studio.openab.dev/plugin-manifest",
+          "major": 1,
+          "minMinor": 0,
+          "maxMinor": 0
+        }
+      ],
+      "requiredCapabilities": [
+        "studio.openab.dev/plugin/mcp-http"
+      ],
+      "requiredExtensions": [
+        "io.example.encrypted-state"
+      ]
+    },
+    "platforms": [
+      "desktop"
+    ],
+    "runtime": {
+      "placement": "remote",
+      "transport": "mcp-http",
+      "entrypoint": "https://example.invalid/mcp"
+    },
+    "contributes": {
+      "tools": [
+        "echo"
+      ]
+    },
+    "permissions": {
+      "network": {
+        "allow": [
+          "example.invalid"
+        ]
+      },
+      "resources": {
+        "read": []
+      },
+      "secrets": {
+        "use": []
+      }
+    },
+    "resourceLimits": {
+      "cpuMillis": 100,
+      "memoryMiB": 64,
+      "maxResultBytes": 1024,
+      "maxDurationSeconds": 30
+    },
+    "migration": {
+      "supportedFromSchemaVersions": []
+    },
+    "extensions": {
+      "io.example.encrypted-state": {
+        "schemaVersion": 1,
+        "payload": {
+          "keyReference": "fleet-managed"
+        }
+      }
+    }
+  },
+  "expect": {
+    "valid": true
+  }
+}

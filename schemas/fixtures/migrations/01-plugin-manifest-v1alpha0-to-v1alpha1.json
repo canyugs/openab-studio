@@ -1,0 +1,120 @@
+{
+  "kind": "migration",
+  "name": "plugin-manifest-v1alpha0-forward-migration",
+  "knownExtensions": [],
+  "input": {
+    "schemaVersion": "studio.openab.dev/v1alpha0",
+    "id": "dev.openab.echo",
+    "displayName": "Echo",
+    "version": "0.1.0",
+    "compatibility": {
+      "contracts": [
+        {
+          "family": "studio.openab.dev/plugin-manifest",
+          "major": 1,
+          "minMinor": 0,
+          "maxMinor": 0
+        }
+      ],
+      "requiredCapabilities": [
+        "studio.openab.dev/plugin/mcp-http"
+      ]
+    },
+    "platforms": [
+      "desktop"
+    ],
+    "runtime": {
+      "placement": "remote",
+      "transport": "mcp-http",
+      "entrypoint": "https://example.invalid/mcp"
+    },
+    "contributes": {
+      "tools": [
+        "echo"
+      ]
+    },
+    "permissions": {
+      "network": {
+        "allow": [
+          "example.invalid"
+        ]
+      },
+      "resources": {
+        "read": []
+      },
+      "secrets": {
+        "use": []
+      }
+    },
+    "resourceLimits": {
+      "cpuMillis": 100,
+      "memoryMiB": 64,
+      "maxResultBytes": 1024,
+      "maxDurationSeconds": 30
+    },
+    "migration": {
+      "supportedFromSchemaVersions": [
+        "studio.openab.dev/v1alpha0"
+      ]
+    }
+  },
+  "expect": {
+    "migrated": true,
+    "value": {
+      "schemaVersion": "studio.openab.dev/v1alpha1",
+      "id": "dev.openab.echo",
+      "name": "Echo",
+      "version": "0.1.0",
+      "compatibility": {
+        "contracts": [
+          {
+            "family": "studio.openab.dev/plugin-manifest",
+            "major": 1,
+            "minMinor": 0,
+            "maxMinor": 0
+          }
+        ],
+        "requiredCapabilities": [
+          "studio.openab.dev/plugin/mcp-http"
+        ]
+      },
+      "platforms": [
+        "desktop"
+      ],
+      "runtime": {
+        "placement": "remote",
+        "transport": "mcp-http",
+        "entrypoint": "https://example.invalid/mcp"
+      },
+      "contributes": {
+        "tools": [
+          "echo"
+        ]
+      },
+      "permissions": {
+        "network": {
+          "allow": [
+            "example.invalid"
+          ]
+        },
+        "resources": {
+          "read": []
+        },
+        "secrets": {
+          "use": []
+        }
+      },
+      "resourceLimits": {
+        "cpuMillis": 100,
+        "memoryMiB": 64,
+        "maxResultBytes": 1024,
+        "maxDurationSeconds": 30
+      },
+      "migration": {
+        "supportedFromSchemaVersions": [
+          "studio.openab.dev/v1alpha0"
+        ]
+      }
+    }
+  }
+}

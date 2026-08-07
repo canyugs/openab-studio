@@ -17,6 +17,7 @@ on 2026-08-07. They are exact pins; update them deliberately with both lockfiles
 | `tauri-build` | 2.6.3 |
 | `@tauri-apps/api` | 2.11.1 |
 | `@tauri-apps/cli` | 2.11.4 |
+| Prettier | 3.9.6 |
 | Vite | 8.2.1 |
 | TypeScript | 7.0.2 |
 | pnpm | 10.29.2 |
@@ -39,9 +40,41 @@ pnpm test
 pnpm build
 ```
 
-`pnpm format` formats Rust through `cargo fmt` and the Tauri UI through Prettier. `pnpm check`
-performs a host Rust check and TypeScript check. `pnpm build` additionally builds the Vite assets and
-the Rust workspace.
+`pnpm format` formats Rust through `cargo fmt`, the human-authored schema TypeScript and generator
+sources through root-pinned Prettier, and the Tauri UI through its local Prettier configuration.
+`pnpm check` performs a host Rust check and TypeScript check. `pnpm build` additionally builds the
+Vite assets and the Rust workspace.
+
+## Shared schema workflow
+
+`schemas/studio.shared.v1alpha1.schema.json` is the canonical source for the versioned shared
+Fleet, plugin, memory, grant, capability, and audit contracts. Do not edit bindings under
+`crates/studio-protocol/src/generated.rs` or `schemas/generated/typescript/` by hand.
+
+```sh
+pnpm schemas:generate
+pnpm schemas:check
+pnpm schemas:test:typescript
+pnpm contracts:verify
+```
+
+`schemas:generate` updates the committed Rust and TypeScript output. `schemas:check` regenerates in
+memory and fails when the working tree's generated output does not exactly match both the canonical
+source and generator. `schemas:test:typescript` compiles and runs the TypeScript fixture harness;
+`pnpm test` includes it with the Rust workspace tests. `contracts:verify` is the dedicated
+cross-language compatibility gate: reproducibility, Rust fixtures, then TypeScript fixtures.
+
+The root `format` and `format:check` commands include every human-authored schema TypeScript source
+under `schemas/typescript/` and the schema generator/harness sources
+(`scripts/generate-schemas.mjs` and `scripts/test-typescript-contract-fixtures.mjs`) through the
+root-pinned Prettier. They intentionally exclude `schemas/generated/typescript/`: those bindings are
+byte-for-byte generator output, and `pnpm schemas:check` is the formatting/reproducibility authority
+for them. Do not run Prettier over generated bindings; regenerate them after changing the canonical
+source or generator.
+
+The corpus under `schemas/fixtures/` is retained for supported, degraded, rejected, migration, and
+unknown-field/required-extension behavior. Expected rejection fixtures are asserted as successful
+test outcomes; the gate exits nonzero only when either language disagrees with the declared result.
 
 ## Desktop development
 

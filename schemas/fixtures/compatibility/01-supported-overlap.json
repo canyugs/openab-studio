@@ -1,0 +1,51 @@
+{
+  "kind": "compatibility",
+  "name": "supported-overlap-selects-highest-common-minor",
+  "request": {
+    "contracts": [
+      {
+        "family": "studio.openab.dev/fleet-management",
+        "major": 1,
+        "minMinor": 2,
+        "maxMinor": 4
+      }
+    ],
+    "requiredCapabilities": [
+      "studio.openab.dev/fleet/grants-revisioned-mutations"
+    ],
+    "optionalCapabilities": [
+      "studio.openab.dev/fleet/event-cursor"
+    ]
+  },
+  "peer": {
+    "contracts": [
+      {
+        "family": "studio.openab.dev/fleet-management",
+        "major": 1,
+        "minMinor": 3,
+        "maxMinor": 5
+      }
+    ],
+    "capabilities": [
+      "studio.openab.dev/fleet/grants-revisioned-mutations",
+      "studio.openab.dev/fleet/event-cursor"
+    ],
+    "extensions": []
+  },
+  "expect": {
+    "outcome": "supported",
+    "selectedContracts": [
+      {
+        "family": "studio.openab.dev/fleet-management",
+        "major": 1,
+        "minor": 4
+      }
+    ],
+    "acceptedCapabilities": [
+      "studio.openab.dev/fleet/grants-revisioned-mutations",
+      "studio.openab.dev/fleet/event-cursor"
+    ],
+    "unavailableCapabilities": [],
+    "sideEffectPermitted": true
+  }
+}

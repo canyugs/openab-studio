@@ -2,9 +2,13 @@
 
 - **Issue:** [#12](https://github.com/canyugs/openab-studio/issues/12)
 - **Workstream:** W6 platform and release
-- **Status:** Decision evidence is valid only when the current workflow OCR-asserts the typed seam in
-  all three screenshots. Historical run [31150578770](https://github.com/canyugs/openab-studio/actions/runs/31150578770)
-  is a partial result and does not meet that criterion.
+- **Status:** The complete hosted run
+  [31158300888](https://github.com/canyugs/openab-studio/actions/runs/31158300888) OCR-asserted the
+  typed seam in distinct iPhone and iPad foreground screenshots plus an iPhone cold-relaunch
+  screenshot. This establishes simulator-path feasibility for the existing shared shell, not a
+  release decision. Historical run
+  [31150578770](https://github.com/canyugs/openab-studio/actions/runs/31150578770) remains a partial
+  result and does not meet that criterion.
 - **Native-project boundary:** `apps/studio/src-tauri/gen/apple` is generated only on the disposable
   macOS Actions runner. It is intentionally neither committed nor generated on a contributor host by
   this spike.
@@ -60,7 +64,25 @@ only on the disposable macOS runner; no image leaves the runner. The OCR asserti
 each final screenshot contains the current TypeScript UI's `workspace_bootstrap` result:
 `Trusted core ready (protocol 1).` It is not a substitute for a broader mobile UI test.
 
-## Historical hosted result
+## Hosted results
+
+### Complete simulator result
+
+Run [31158300888](https://github.com/canyugs/openab-studio/actions/runs/31158300888) on commit
+`79a68baad068d40d0fe706a35f6b9baf6b95ade5` is the complete feasibility result. Its artifact
+`ios-ipados-lifecycle-evidence-31158300888` (artifact `8986585346`, retained until
+2026-08-21T07:59:01Z) records macOS 15.7.7, Xcode 16.4, iOS simulator SDK 18.5, and the runner's
+iOS 26.2 iPhone 17 Pro and iPad Pro 13-inch (M5) simulators. The generated simulator executable is
+arm64, has `MinimumOSVersion` 14.0, and declares both iPhone and iPad device families.
+
+Each reported launch PID passed its simulator liveness probe, and the runner-local Vision OCR
+assertion passed on its first attempt for all three screenshots: iPhone foreground (PID 53182), iPad
+foreground (PID 58972), and iPhone cold relaunch (PID 60268). The cold-process evidence records
+`simctl terminate` at 07:57:54Z, the cold launch request at 07:57:57Z, and the asserted relaunch
+screen at 07:58:01Z. The iPad foreground screenshot visibly renders `Trusted core ready (protocol
+1).`; it is not a Home Screen capture.
+
+### Earlier partial result
 
 Run [31150578770](https://github.com/canyugs/openab-studio/actions/runs/31150578770) on artifact
 `ios-ipados-lifecycle-evidence-31150578770` (artifact `8983542691`, retained until
@@ -75,6 +97,17 @@ so the screenshot was too early and cannot establish the tablet seam. The workfl
 checks process liveness and waits for OCR-confirmed seam text instead of accepting a timed sleep.
 The run also records that Tauri installed a missing `ios-deploy` tool only on the disposable runner;
 no contributor-host package or mobile initialization was performed.
+
+### Cancelled diagnostic
+
+Run [31156525248](https://github.com/canyugs/openab-studio/actions/runs/31156525248) was
+intentionally cancelled during an elapsed-time investigation; it is neither a product failure nor
+feasibility evidence. Its diagnostic artifact `8985972075` contains no screenshots or app-container
+path. Its `iphone-dev.log` reaches `BUILD SUCCEEDED`, then `Deploying app to device...` and the
+Tauri-reported PID 70471, so it cannot establish where the remaining transition was waiting or
+whether cleanup was involved. Commit `79a68ba` nevertheless bounds background `tauri ios dev`
+cleanup with TERM, a short poll, then KILL before waiting, preventing an unbounded cleanup wait in
+future hosted runs.
 
 ## What each result can establish
 
@@ -110,9 +143,9 @@ evidence artifact.
 
 ## Feasibility criteria and residual blockers
 
-A green run with all three OCR-asserted screenshots is evidence that Tauri remains feasible for the existing
-shared shell's ARM simulator path on both form factors. It does **not** clear P5/P6, grant iOS/iPadOS
-release support, or prove full remote management. The remaining release blockers are:
+The complete run above is evidence that Tauri remains feasible for the existing shared shell's ARM
+simulator path on both form factors. It does **not** clear P5/P6, grant iOS/iPadOS release support,
+or prove full remote management. The remaining release blockers are:
 
 - device signing, entitlements, installation, and physical iPhone/iPad validation;
 - trusted storage and device enrollment;

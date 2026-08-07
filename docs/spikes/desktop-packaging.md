@@ -2,7 +2,11 @@
 
 - **Issue:** [#11](https://github.com/canyugs/openab-studio/issues/11)
 - **Workstream:** W6 — Platform and release
-- **Status:** Hosted-runner evidence pending
+- **Status:** Final hosted run
+  [31150124485](https://github.com/canyugs/openab-studio/actions/runs/31150124485) passed native
+  bundle, isolated install, and launch-liveness jobs for macOS arm64, Windows x64, and Linux x64.
+  A normal downloaded macOS dogfood attempt was Gatekeeper-blocked; this remains feasibility
+  evidence, not a release decision.
 - **Decision boundary:** P0 feasibility only; this does not choose supported release tiers or ship a
   desktop release.
 
@@ -84,6 +88,27 @@ requires Apple credentials for release signing/notarization, and the
 [updater documentation](https://v2.tauri.app/plugin/updater/) treats update signatures as a separate
 private-key concern. These are release-engineering constraints, not evidence of a product defect in the
 current minimal shell.
+
+## Final hosted and downloaded result
+
+Run [31150124485](https://github.com/canyugs/openab-studio/actions/runs/31150124485) completed green
+on commit `be0191b5b63cccda46f665cf4316ae106b37f9fe`. It retained macOS arm64 artifact `8983019776`,
+Windows x64 artifact `8983151791`, and Linux x64 artifact `8983142682` until 2026-08-14. Each job
+earned B/I/L/W evidence on its named hosted environment; none earned release evidence.
+
+The downloaded macOS DMG hash is
+`f4b812bceb56a7da61dc63a0f9f4b91484bad0d77388f19897dabf64e5b34b60`, exactly matching the CI
+artifact record, and `hdiutil verify` reports a valid image. The downloaded file carried Chrome's
+quarantine attribute. The contained `.app` reports an ad-hoc signature with no Team identifier, and
+strict deep signature verification fails with `code has no resources but signature indicates they
+must be present`. Gatekeeper consequently reports that the app is damaged. Removing quarantine made
+this verified developer artifact launch locally, but that bypass is not a supported installation
+path. Developer ID signing, bundle resource sealing, notarization, stapling, and a fresh quarantined
+download assessment are mandatory before a macOS release claim.
+
+Windows and Linux reached hosted isolated install and process-liveness checks only. They still lack
+normal user-machine installation, trusted signing, visible interaction, update, rollback, and
+removal evidence.
 
 ## Failure classification
 

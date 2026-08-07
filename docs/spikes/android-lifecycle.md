@@ -3,7 +3,7 @@
 - **Issue:** [#13](https://github.com/canyugs/openab-studio/issues/13)
 - **Scope:** P0 build-and-launch feasibility for the existing typed `workspace_bootstrap` Rust/TypeScript seam.
 - **Evidence workflow:** [Android lifecycle spike](https://github.com/canyugs/openab-studio/actions/workflows/spike-android.yml)
-- **Decision status:** feasible for the current typed P0 seam and x86_64 Google-AVD launch only; this is not a phone/tablet release decision. [Run 31154613064](https://github.com/canyugs/openab-studio/actions/runs/31154613064) passed the build, phone, and tablet jobs.
+- **Decision status:** feasible for the current typed P0 seam and x86_64 Google-AVD launch only; this is not a phone/tablet release decision. [Run 31156391442](https://github.com/canyugs/openab-studio/actions/runs/31156391442) passed the build, phone, and tablet jobs.
 
 ## Boundary
 
@@ -49,7 +49,7 @@ screenshot/activity dump, Home/background process/task state, foreground return,
 absence, cold relaunch, package data, a deep-link attempt, and logcat. Each job emits its own
 `android-lifecycle-<phone|tablet>-<run-id>` artifact for 14 days.
 
-For [run 31154613064](https://github.com/canyugs/openab-studio/actions/runs/31154613064), the tablet
+For [run 31156391442](https://github.com/canyugs/openab-studio/actions/runs/31156391442), the tablet
 action requested `ram-size: 2048M` and `heap-size: 256` after an earlier default-profile attempt was
 killed with exit 137 during its first UI capture. The action wrote `hw.ramSize=2048M` and
 `hw.heapSize=256`, but the Android Emulator then logged `Increasing RAM size to 4096MB` and booted
@@ -70,14 +70,14 @@ Artifacts include no release or debug private key. A debug certificate fingerpri
 
 ### Final result
 
-[Run 31154613064](https://github.com/canyugs/openab-studio/actions/runs/31154613064) completed green
+[Run 31156391442](https://github.com/canyugs/openab-studio/actions/runs/31156391442) completed green
 for the four-ABI build, fresh phone lifecycle, and fresh tablet lifecycle jobs. Its build artifact is
-[8984811069](https://github.com/canyugs/openab-studio/actions/runs/31154613064), with independently
-retained phone [8984872344](https://github.com/canyugs/openab-studio/actions/runs/31154613064) and
-tablet [8984866437](https://github.com/canyugs/openab-studio/actions/runs/31154613064) evidence.
+[8985478367](https://github.com/canyugs/openab-studio/actions/runs/31156391442), with independently
+retained phone [8985544108](https://github.com/canyugs/openab-studio/actions/runs/31156391442) and
+tablet [8985540551](https://github.com/canyugs/openab-studio/actions/runs/31156391442) evidence.
 
 Both lifecycle runners installed the same inspected x86_64 APK checksum
-`70d16426709cd78cd7b8a81c9b56bedbd6edaf9deffda5f7413cc8e5d3d342be`, rendered
+`b476b4f09891bd811c689988e008732a9cc6bfbbee922b21f0c62ab75a701a30`, rendered
 `Trusted core ready (protocol 1).`, sent `dev.openab.studio/.MainActivity` to the launcher with the
 process still present after Home, returned it to the foreground, observed no process after
 `am force-stop`, and cold-launched it again. The phone profile recorded 1080x2400 at 420 dpi; the

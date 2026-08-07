@@ -2,8 +2,8 @@
 
 - **Issue:** [#12](https://github.com/canyugs/openab-studio/issues/12)
 - **Workstream:** W6 platform and release
-- **Status:** The complete hosted run
-  [31158300888](https://github.com/canyugs/openab-studio/actions/runs/31158300888) OCR-asserted the
+- **Status:** The final hosted run
+  [31160635948](https://github.com/canyugs/openab-studio/actions/runs/31160635948) OCR-asserted the
   typed seam in distinct iPhone and iPad foreground screenshots plus an iPhone cold-relaunch
   screenshot. This establishes simulator-path feasibility for the existing shared shell, not a
   release decision. Historical run
@@ -69,18 +69,18 @@ final screenshot contains the current TypeScript UI's `workspace_bootstrap` resu
 
 ### Complete simulator result
 
-Run [31158300888](https://github.com/canyugs/openab-studio/actions/runs/31158300888) on commit
-`79a68baad068d40d0fe706a35f6b9baf6b95ade5` is the complete feasibility result. Its artifact
-`ios-ipados-lifecycle-evidence-31158300888` (artifact `8986585346`, retained until
-2026-08-21T07:59:01Z) records macOS 15.7.7, Xcode 16.4, iOS simulator SDK 18.5, and the runner's
+Run [31160635948](https://github.com/canyugs/openab-studio/actions/runs/31160635948) on commit
+`443dc178055edce2c606ef7a12b007df34d6393b` is the complete feasibility result. Its artifact
+`ios-ipados-lifecycle-evidence-31160635948` (artifact `8987905126`, retained until
+2026-08-21T08:48:03Z) records macOS 15.7.7, Xcode 16.4, iOS simulator SDK 18.5, and the runner's
 iOS 26.2 iPhone 17 Pro and iPad Pro 13-inch (M5) simulators. The generated simulator executable is
 arm64, has `MinimumOSVersion` 14.0, and declares both iPhone and iPad device families.
 
 Each reported launch PID passed its simulator liveness probe, and the runner-local Vision OCR
-assertion passed on its first attempt for all three screenshots: iPhone foreground (PID 53182), iPad
-foreground (PID 58972), and iPhone cold relaunch (PID 60268). The cold-process evidence records
-`simctl terminate` at 07:57:54Z, the cold launch request at 07:57:57Z, and the asserted relaunch
-screen at 07:58:01Z. The iPad foreground screenshot visibly renders `Trusted core ready (protocol
+assertion passed on its first attempt for all three screenshots: iPhone foreground (PID 83547), iPad
+foreground (PID 90135), and iPhone cold relaunch (PID 92194). The cold-process evidence records
+`simctl terminate` at 08:46:17Z, the cold launch request at 08:46:24Z, and the asserted relaunch
+screen at 08:46:36Z. The iPad foreground screenshot visibly renders `Trusted core ready (protocol
 1).`; it is not a Home Screen capture.
 
 ### Earlier partial result

@@ -4,6 +4,7 @@
 - **Last updated:** 2026-08-07
 - **Client ADR:** [Cross-platform remote-first client](./adr/remote-first-client.md)
 - **Plugin ADR:** [Plugin platform](./adr/plugin-platform.md)
+- **Platform ADR:** [Platform support and release tiers](./adr/platform-support-tiers.md)
 
 ## Product boundary
 

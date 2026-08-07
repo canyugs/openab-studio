@@ -46,7 +46,6 @@ jobs:
             bundles: deb,appimage
     env:
       BUNDLES: ${{ matrix.bundles }}
-      EVIDENCE_DIR: ${{ runner.temp }}/desktop-packaging-spike/${{ matrix.id }}
       EXPECTED_ARCH: ${{ matrix.expected_arch }}
       TARGET: ${{ matrix.target }}
 
@@ -56,17 +55,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          EVIDENCE_DIR="$RUNNER_TEMP/desktop-packaging-spike/${{ matrix.id }}"
           mkdir -p "$EVIDENCE_DIR"
           printf '%s\n' 'This artifact contains ephemeral hosted-runner evidence only.' \
             > "$EVIDENCE_DIR/README.txt"
+          printf 'EVIDENCE_DIR=%s\n' "$EVIDENCE_DIR" >> "$GITHUB_ENV"
 
       - name: Initialize Windows evidence directory
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path $env:EVIDENCE_DIR | Out-Null
+          $evidenceDirectory = Join-Path $env:RUNNER_TEMP 'desktop-packaging-spike/${{ matrix.id }}'
+          New-Item -ItemType Directory -Force -Path $evidenceDirectory | Out-Null
           'This artifact contains ephemeral hosted-runner evidence only.' |
-            Set-Content -NoNewline -Path (Join-Path $env:EVIDENCE_DIR 'README.txt')
+            Set-Content -NoNewline -Path (Join-Path $evidenceDirectory 'README.txt')
+          "EVIDENCE_DIR=$evidenceDirectory" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Reject accidental Unix signing material
         if: runner.os != 'Windows'

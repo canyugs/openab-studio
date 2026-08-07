@@ -1,0 +1,391 @@
+name: iOS and iPadOS Tauri lifecycle spike
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/spike-ios.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "apps/studio/**"
+      - "crates/**"
+      - "docs/spikes/ios-ipados-lifecycle.md"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator-evidence:
+    name: iPhone and iPad simulator evidence
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      APP_BUNDLE_ID: dev.openab.studio
+      COCOAPODS_VERSION: 1.16.2
+      SCREENSHOT_ASSERTION_ATTEMPTS: 12
+      SCREENSHOT_ASSERTION_INTERVAL_SECONDS: 5
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Rust 1.85
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.85"
+
+      - name: Set up Node.js 22.12.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.12.0
+          package-manager-cache: false
+
+      - name: Set up pnpm 10.29.2
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.29.2
+          cache: false
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Record hosted-runner toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          {
+            date -u +"started_at_utc=%Y-%m-%dT%H:%M:%SZ"
+            echo "runner_os=${RUNNER_OS}"
+            uname -a
+            sw_vers
+            xcodebuild -version
+            xcrun --sdk iphonesimulator --show-sdk-version
+            rustc -vV
+            node --version
+            pnpm --version
+            pnpm --filter @openab/studio exec tauri --version
+          } | tee evidence/environment.txt
+
+      - name: Add the simulator Rust target
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-apple-ios-sim
+          rustup target list --installed | tee evidence/rust-targets.txt
+
+      - name: Install CocoaPods only on the disposable runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v pod >/dev/null 2>&1; then
+            sudo gem install cocoapods --version "${COCOAPODS_VERSION}" --no-document
+          fi
+          pod --version | tee evidence/cocoapods-version.txt
+
+      - name: Generate the iOS project ephemerally
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e apps/studio/src-tauri/gen/apple
+          pnpm --filter @openab/studio exec tauri ios init --ci --skip-targets-install \
+            2>&1 | tee evidence/ios-init.log
+          test -d apps/studio/src-tauri/gen/apple
+          find apps/studio/src-tauri/gen/apple -maxdepth 4 -type f | sort \
+            | tee evidence/generated-apple-files.txt
+          find apps/studio/src-tauri/gen/apple -name project.pbxproj -print -exec \
+            rg -n "ARCHS|IPHONEOS_DEPLOYMENT_TARGET|PRODUCT_BUNDLE_IDENTIFIER|SUPPORTED_PLATFORMS" {} \; \
+            | tee evidence/generated-build-settings.txt
+          git status --short | tee evidence/worktree-after-generation.txt
+
+      - name: Select and boot runner-local iPhone and iPad simulators
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE' > evidence/simulator-selection.env
+          const { execFileSync } = require("node:child_process");
+
+          const simulators = JSON.parse(
+            execFileSync(
+              "xcrun",
+              ["simctl", "list", "-j", "runtimes", "devices"],
+              { encoding: "utf8" },
+            ),
+          );
+          const runtimes = simulators.runtimes
+            .filter(
+              (candidate) =>
+                candidate.isAvailable &&
+                candidate.identifier.startsWith(
+                  "com.apple.CoreSimulator.SimRuntime.iOS-",
+                ),
+            )
+            .sort((left, right) =>
+              right.version.localeCompare(left.version, undefined, { numeric: true }),
+            );
+          const hasSimulator = (runtime, prefix) =>
+            (simulators.devices[runtime.identifier] ?? []).some(
+              (candidate) =>
+                candidate.isAvailable !== false && candidate.name.startsWith(prefix),
+            );
+          const runtime = runtimes.find(
+            (candidate) =>
+              hasSimulator(candidate, "iPhone") && hasSimulator(candidate, "iPad"),
+          );
+          if (!runtime) {
+            throw new Error("No available iOS runtime has both iPhone and iPad simulators.");
+          }
+
+          const runtimeDevices = simulators.devices[runtime.identifier] ?? [];
+          const chooseSimulator = (prefix) => {
+            const simulator = runtimeDevices.find(
+              (candidate) =>
+                candidate.isAvailable !== false && candidate.name.startsWith(prefix),
+            );
+            if (!simulator) {
+              throw new Error(
+                `No available ${prefix} simulator is installed for ${runtime.name}.`,
+              );
+            }
+            return simulator;
+          };
+
+          const iphone = chooseSimulator("iPhone");
+          const ipad = chooseSimulator("iPad");
+          for (const [key, value] of Object.entries({
+            IOS_RUNTIME: runtime.identifier,
+            IOS_RUNTIME_NAME: runtime.name,
+            IPHONE_UDID: iphone.udid,
+            IPHONE_ORIGINAL_NAME: iphone.name,
+            IPHONE_INITIAL_STATE: iphone.state,
+            IPAD_UDID: ipad.udid,
+            IPAD_ORIGINAL_NAME: ipad.name,
+            IPAD_INITIAL_STATE: ipad.state,
+          })) {
+            console.log(`${key}=${JSON.stringify(value)}`);
+          }
+          NODE
+          source evidence/simulator-selection.env
+          cat evidence/simulator-selection.env | tee evidence/simulator-selection.txt
+          IPHONE_NAME="OpenAB Studio iPhone ${GITHUB_RUN_ID}"
+          IPAD_NAME="OpenAB Studio iPad ${GITHUB_RUN_ID}"
+          xcrun simctl rename "${IPHONE_UDID}" "${IPHONE_NAME}"
+          xcrun simctl rename "${IPAD_UDID}" "${IPAD_NAME}"
+          boot_simulator() {
+            local label="$1"
+            local udid="$2"
+            if ! xcrun simctl boot "${udid}" 2>&1 | tee -a evidence/simulator-boot.txt; then
+              if ! xcrun simctl list devices | rg -F "${udid}" | rg -q "(Booted)"; then
+                echo "${label} simulator did not boot: ${udid}" >&2
+                return 1
+              fi
+            fi
+            perl -e 'alarm shift; exec @ARGV' 240 xcrun simctl bootstatus "${udid}" -b 2>&1 \
+              | tee -a evidence/simulator-boot.txt
+          }
+          boot_simulator "iPhone" "${IPHONE_UDID}"
+          boot_simulator "iPad" "${IPAD_UDID}"
+          {
+            printf 'IPHONE_UDID=%s\n' "${IPHONE_UDID}"
+            printf 'IPAD_UDID=%s\n' "${IPAD_UDID}"
+            printf 'IPHONE_NAME=%s\n' "${IPHONE_NAME}"
+            printf 'IPAD_NAME=%s\n' "${IPAD_NAME}"
+          } | tee -a evidence/simulator-selection.txt >> "${GITHUB_ENV}"
+
+      - name: Build and foreground-launch the typed seam on iPhone and iPad
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @openab/studio exec tauri ios dev "${IPHONE_NAME}" \
+            > evidence/iphone-dev.log 2>&1 &
+          TAURI_IOS_DEV_PID=$!
+          cleanup() {
+            if kill -0 "${TAURI_IOS_DEV_PID}" 2>/dev/null; then
+              kill "${TAURI_IOS_DEV_PID}" || true
+              for _ in $(seq 1 15); do
+                if ! kill -0 "${TAURI_IOS_DEV_PID}" 2>/dev/null; then
+                  break
+                fi
+                sleep 1
+              done
+              if kill -0 "${TAURI_IOS_DEV_PID}" 2>/dev/null; then
+                echo "tauri ios dev did not exit after SIGTERM; sending SIGKILL" >&2
+                kill -KILL "${TAURI_IOS_DEV_PID}" || true
+              fi
+              wait "${TAURI_IOS_DEV_PID}" || true
+            fi
+          }
+          trap cleanup EXIT
+
+          APP_PATH=""
+          for _ in $(seq 1 300); do
+            APP_PATH="$(xcrun simctl get_app_container "${IPHONE_UDID}" "${APP_BUNDLE_ID}" app 2>/dev/null || true)"
+            if test -n "${APP_PATH}" && test -d "${APP_PATH}"; then
+              break
+            fi
+            if ! kill -0 "${TAURI_IOS_DEV_PID}" 2>/dev/null; then
+              cat evidence/iphone-dev.log >&2
+              exit 1
+            fi
+            sleep 2
+          done
+          if test -z "${APP_PATH}" || ! test -d "${APP_PATH}"; then
+            cat evidence/iphone-dev.log >&2
+            exit 1
+          fi
+          printf '%s\n' "${APP_PATH}" | tee evidence/iphone-app-path.txt
+
+          launch_application() {
+            local label="$1"
+            local udid="$2"
+            local launch_log="$3"
+            xcrun simctl launch --terminate-running-process "${udid}" "${APP_BUNDLE_ID}" \
+              | tee "${launch_log}"
+            LAUNCHED_PID="$(sed -n "s/^${APP_BUNDLE_ID}: //p" "${launch_log}" | tail -n 1)"
+            if ! [[ "${LAUNCHED_PID}" =~ ^[0-9]+$ ]]; then
+              echo "${label} launch did not report an app PID" >&2
+              return 1
+            fi
+          }
+
+          assert_typed_seam() {
+            local label="$1"
+            local udid="$2"
+            local app_pid="$3"
+            local screenshot="$4"
+            local stem="${screenshot%.png}"
+            local ocr_log="${stem}.ocr.txt"
+            local process_log="${stem}.process.txt"
+            local attempt
+
+            for attempt in $(seq 1 "${SCREENSHOT_ASSERTION_ATTEMPTS}"); do
+              printf '%s attempt=%s pid=%s at_utc=%s\n' \
+                "${label}" "${attempt}" "${app_pid}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                | tee -a "${ocr_log}"
+              if ! xcrun simctl spawn "${udid}" /bin/kill -0 "${app_pid}" 2>&1 \
+                | tee -a "${process_log}"; then
+                echo "${label} app process exited before its typed seam became visible" \
+                  | tee -a "${ocr_log}" >&2
+                return 1
+              fi
+              xcrun simctl io "${udid}" screenshot "${screenshot}"
+              if swift - "${screenshot}" "Trusted core ready" <<'SWIFT' 2>&1 | tee -a "${ocr_log}"
+          import AppKit
+          import Foundation
+          import Vision
+
+          let arguments = CommandLine.arguments
+          precondition(arguments.count == 3, "usage: ocr <image> <expected-text>")
+          let imageURL = URL(fileURLWithPath: arguments[1])
+          let expectedText = arguments[2].lowercased()
+          guard let image = NSImage(contentsOf: imageURL),
+                let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            fputs("could not decode \(imageURL.path)\n", stderr)
+            exit(2)
+          }
+          let request = VNRecognizeTextRequest()
+          request.recognitionLevel = .accurate
+          request.usesLanguageCorrection = true
+          let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+          do {
+            try handler.perform([request])
+          } catch {
+            fputs("OCR failed: \(error)\n", stderr)
+            exit(2)
+          }
+          let recognized = (request.results ?? [])
+            .compactMap { $0.topCandidates(1).first?.string }
+            .joined(separator: "\n")
+          print(recognized)
+          if !recognized.lowercased().contains(expectedText) {
+            fputs("Expected OCR text not found: \(arguments[2])\n", stderr)
+            exit(1)
+          }
+          SWIFT
+              then
+                printf '%s assertion=passed attempt=%s\n' "${label}" "${attempt}" \
+                  | tee -a "${ocr_log}"
+                return 0
+              fi
+              if test "${attempt}" -lt "${SCREENSHOT_ASSERTION_ATTEMPTS}"; then
+                sleep "${SCREENSHOT_ASSERTION_INTERVAL_SECONDS}"
+              fi
+            done
+
+            echo "${label} never displayed the expected typed-seam text" | tee -a "${ocr_log}" >&2
+            return 1
+          }
+
+          launch_application "iPhone foreground" "${IPHONE_UDID}" evidence/iphone-foreground-launch.txt
+          IPHONE_FOREGROUND_PID="${LAUNCHED_PID}"
+          assert_typed_seam \
+            "iPhone foreground" \
+            "${IPHONE_UDID}" \
+            "${IPHONE_FOREGROUND_PID}" \
+            evidence/iphone-foreground.png
+
+          APP_EXECUTABLE="$(plutil -extract CFBundleExecutable raw -o - "${APP_PATH}/Info.plist")"
+          plutil -p "${APP_PATH}/Info.plist" | tee evidence/app-info-plist.txt
+          {
+            printf 'bundle_executable=%s\n' "${APP_EXECUTABLE}"
+            file "${APP_PATH}/${APP_EXECUTABLE}"
+            lipo -info "${APP_PATH}/${APP_EXECUTABLE}"
+          } | tee evidence/app-binary-architecture.txt
+
+          xcrun simctl install "${IPAD_UDID}" "${APP_PATH}"
+          launch_application "iPad foreground" "${IPAD_UDID}" evidence/ipad-foreground-launch.txt
+          IPAD_FOREGROUND_PID="${LAUNCHED_PID}"
+          assert_typed_seam \
+            "iPad foreground" \
+            "${IPAD_UDID}" \
+            "${IPAD_FOREGROUND_PID}" \
+            evidence/ipad-foreground.png
+
+          {
+            date -u +"terminate_requested_at_utc=%Y-%m-%dT%H:%M:%SZ"
+            xcrun simctl terminate "${IPHONE_UDID}" "${APP_BUNDLE_ID}"
+            date -u +"cold_relaunch_requested_at_utc=%Y-%m-%dT%H:%M:%SZ"
+          } | tee evidence/iphone-termination-relaunch.txt
+          launch_application \
+            "iPhone cold relaunch" \
+            "${IPHONE_UDID}" \
+            evidence/iphone-cold-relaunch-launch.txt
+          IPHONE_COLD_RELAUNCH_PID="${LAUNCHED_PID}"
+          printf 'cold_relaunch_pid=%s\n' "${IPHONE_COLD_RELAUNCH_PID}" \
+            | tee -a evidence/iphone-termination-relaunch.txt
+          assert_typed_seam \
+            "iPhone cold relaunch" \
+            "${IPHONE_UDID}" \
+            "${IPHONE_COLD_RELAUNCH_PID}" \
+            evidence/iphone-cold-relaunch.png
+
+      - name: Capture simulator diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -o pipefail
+          xcrun simctl list devices available | tee evidence/available-simulators.txt || true
+          if test -n "${IPHONE_UDID:-}"; then
+            xcrun simctl spawn "${IPHONE_UDID}" log show --style compact --last 2m \
+              --predicate 'process == "OpenAB Studio"' \
+              > evidence/iphone-device-log.txt 2>&1 || true
+          fi
+          if test -n "${IPAD_UDID:-}"; then
+            xcrun simctl spawn "${IPAD_UDID}" log show --style compact --last 2m \
+              --predicate 'process == "OpenAB Studio"' \
+              > evidence/ipad-device-log.txt 2>&1 || true
+          fi
+
+      - name: Upload iOS and iPadOS spike evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-ipados-lifecycle-evidence-${{ github.run_id }}
+          path: evidence
+          if-no-files-found: error
+          retention-days: 14

@@ -132,7 +132,6 @@ jobs:
           apksigner="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS_VERSION/apksigner"
           while IFS= read -r apk; do
             name="$(basename "$apk")"
-            cp "$apk" "evidence/android/build/apks/$name"
             {
               printf 'apk=%s\n' "$apk"
               "$aapt" dump badging "$apk"
@@ -143,10 +142,12 @@ jobs:
             } > "evidence/android/build/$name.txt"
           done < evidence/android/build/apk-paths.txt
 
-          x86_apk="$(find evidence/android/build/apks -type f -name '*x86_64*.apk' -print -quit)"
+          x86_apk="$(find apps/studio/src-tauri/gen/android/app/build/outputs -type f -name '*x86_64*.apk' -print -quit)"
           test -n "$x86_apk"
-          sha256sum evidence/android/build/apks/*.apk > evidence/android/build/apk-sha256.txt
-          printf '%s\n' "$x86_apk" > evidence/android/build/x86_64-apk-path.txt
+          artifact_x86_apk="evidence/android/build/apks/$(basename "$x86_apk")"
+          cp "$x86_apk" "$artifact_x86_apk"
+          sha256sum "$artifact_x86_apk" > evidence/android/build/apk-sha256.txt
+          printf '%s\n' "$artifact_x86_apk" > evidence/android/build/x86_64-apk-path.txt
 
       - name: Record source-tree boundary
         if: always()

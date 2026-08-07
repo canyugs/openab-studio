@@ -40,7 +40,7 @@ The build job:
 2. builds debug, split APKs for `aarch64`, `armv7`, `i686`, and `x86_64`;
 3. archives generated Gradle and manifest metadata, each APK's native libraries and debug-signing
    verification, paths, checksums, and source-tree boundary; and
-4. uploads the APKs and build evidence as `android-build-spike-<run-id>` for 14 days.
+4. uploads the x86_64 APK and four-ABI build evidence as `android-build-spike-<run-id>` for 14 days.
 
 The independent `phone` and `tablet` lifecycle jobs each receive that artifact at `android-build`,
 set up only JDK 21 plus the emulator's Android platform tools/API 35, and launch the x86_64 APK on
@@ -52,7 +52,7 @@ absence, cold relaunch, package data, a deep-link attempt, and logcat. Each job 
 The runner boundary is intentional: the first post-build attempt showed that cold four-ABI
 compilation plus emulator installation can exhaust an Ubuntu runner's disk. Lifecycle jobs therefore
 do not check out the repository, generate Android source, install an NDK, or compile. The handoff
-records the downloaded APK checksums and free disk before the AVD starts.
+records the downloaded x86_64 APK checksum and free disk before the AVD starts.
 
 Artifacts include no release or debug private key. A debug certificate fingerprint may appear in
 `apksigner` output and is evidence only, not a signing identity.

@@ -2,7 +2,9 @@
 
 - **Issue:** [#12](https://github.com/canyugs/openab-studio/issues/12)
 - **Workstream:** W6 platform and release
-- **Status:** Automated simulator evidence is required before this becomes a feasibility result.
+- **Status:** Decision evidence is valid only when the current workflow OCR-asserts the typed seam in
+  all three screenshots. Historical run [31150578770](https://github.com/canyugs/openab-studio/actions/runs/31150578770)
+  is a partial result and does not meet that criterion.
 - **Native-project boundary:** `apps/studio/src-tauri/gen/apple` is generated only on the disposable
   macOS Actions runner. It is intentionally neither committed nor generated on a contributor host by
   this spike.
@@ -45,25 +47,43 @@ is absent, the pinned gem is installed only on that disposable runner. The workf
 2. gives selected runner-local iPhone and iPad simulators unique disposable names, then boots them
    serially with an explicit readiness bound;
 3. uses the pinned local Tauri CLI to run the existing app on the iPhone simulator;
-4. captures a foreground iPhone screenshot after the app is installed, then installs and launches
-   the same simulator app on iPad and captures an iPad screenshot; and
+4. explicitly launches the app on each simulator, verifies the reported app PID is still alive, and
+   retries each screenshot every five seconds for up to one minute until runner-local Swift/Vision
+   OCR finds `Trusted core ready`; and
 5. asks `simctl` to terminate the iPhone app, cold-launches it again, and captures a third
-   screenshot.
+   OCR-asserted screenshot.
 
 The uploaded `ios-ipados-lifecycle-evidence-<run-id>` artifact retains the init and launch logs,
 generated-project build settings, selected simulator metadata, app binary architecture, lifecycle
-command output, device diagnostics, and screenshots. The screenshots are the visual evidence that
-the current TypeScript UI rendered the result of its `workspace_bootstrap` Tauri command:
-`Trusted core ready (protocol 1).` They are not a substitute for a future automated mobile UI test.
+command output, device diagnostics, screenshots, app-PID probes, and OCR transcripts. Vision runs
+only on the disposable macOS runner; no image leaves the runner. The OCR assertion verifies that
+each final screenshot contains the current TypeScript UI's `workspace_bootstrap` result:
+`Trusted core ready (protocol 1).` It is not a substitute for a broader mobile UI test.
+
+## Historical hosted result
+
+Run [31150578770](https://github.com/canyugs/openab-studio/actions/runs/31150578770) on artifact
+`ios-ipados-lifecycle-evidence-31150578770` (artifact `8983542691`, retained until
+2026-08-21T05:47:28Z) is a **partial pass**, not a feasibility conclusion. It ran macOS 15.7.7,
+Xcode 16.4, iOS simulator SDK 18.5, and the runner's iOS 26.2 iPhone 17 Pro and iPad Pro 13-inch
+(M5) simulators. Its iPhone foreground and cold-relaunch screenshots show the typed seam, and the
+generated simulator binary is arm64 with `MinimumOSVersion` 14.0.
+
+The iPad `simctl launch` command returned PID 53737, but the fixed ten-second screenshot captured
+the iPad Home Screen. Its device log records the first WebKit commit about 27 seconds after launch,
+so the screenshot was too early and cannot establish the tablet seam. The workflow therefore now
+checks process liveness and waits for OCR-confirmed seam text instead of accepting a timed sleep.
+The run also records that Tauri installed a missing `ios-deploy` tool only on the disposable runner;
+no contributor-host package or mobile initialization was performed.
 
 ## What each result can establish
 
 | Area | Automated evidence | What it establishes | What it does not establish |
 |---|---|---|---|
-| Rust/TypeScript seam | The foreground screenshots from both simulators show the current UI's `workspace_bootstrap` result. | The generated native shell can render the existing typed command boundary on the selected simulator runtime. | A management API mutation, ACP session, auth, storage, or reconnection flow. |
-| iPhone | A selected runner-local iPhone simulator receives the generated app and has a foreground screenshot. | Phone simulator build/install/launch for the recorded device model/runtime. | Small-screen usability, accessibility, one-handed flow, interruption recovery, cellular behavior, or physical-phone behavior. |
-| iPad | The same generated simulator app is installed, launched, and captured on a selected runner-local iPad simulator. | Tablet simulator install/launch and the common shell's basic runtime path. | Adaptive/dense management UI, rotation, Split View, Stage Manager, external display, keyboard/trackpad, or physical-iPad behavior. |
-| Termination and cold relaunch | `simctl terminate` succeeds, followed by `simctl launch` and a relaunch screenshot. | The simulator accepts a process termination and the app can be launched again from a cold process. | State persistence, graceful lifecycle callbacks, pending-mutation recovery, or transport reconnection. |
+| Rust/TypeScript seam | OCR-asserted foreground screenshots from both simulators contain the current UI's `workspace_bootstrap` result. | The generated native shell can render the existing typed command boundary on the selected simulator runtime. | A management API mutation, ACP session, auth, storage, or reconnection flow. |
+| iPhone | A selected runner-local iPhone simulator receives the generated app, reports a live PID, and has an OCR-asserted foreground screenshot. | Phone simulator build/install/launch for the recorded device model/runtime. | Small-screen usability, accessibility, one-handed flow, interruption recovery, cellular behavior, or physical-phone behavior. |
+| iPad | The same generated simulator app is installed, reports a live launch PID, and has an OCR-asserted foreground screenshot. | Tablet simulator install/launch and the common shell's basic runtime path. | Adaptive/dense management UI, rotation, Split View, Stage Manager, external display, keyboard/trackpad, or physical-iPad behavior. |
+| Termination and cold relaunch | `simctl terminate` succeeds, followed by `simctl launch`, a live PID, and an OCR-asserted relaunch screenshot. | The simulator accepts a process termination and the app can be launched again from a cold process. | State persistence, graceful lifecycle callbacks, pending-mutation recovery, or transport reconnection. |
 | Background/foreground transition | No artificial background transition is attempted. | Nothing beyond the foreground launch above. | Background suspension, resume, WebSocket survival, background task scheduling, push wake-up, or reconnect behavior. These remain unmeasured. |
 | Reconnect | The bootstrap shell currently has no Fleet Management API or ACP-over-WebSocket transport. | Nothing; the absence is explicit. | Network-loss recovery or session resume. That needs the future transport/state-machine work and a physical-device experiment. |
 
@@ -90,7 +110,7 @@ evidence artifact.
 
 ## Feasibility criteria and residual blockers
 
-A green run with all three screenshots is evidence that Tauri remains feasible for the existing
+A green run with all three OCR-asserted screenshots is evidence that Tauri remains feasible for the existing
 shared shell's ARM simulator path on both form factors. It does **not** clear P5/P6, grant iOS/iPadOS
 release support, or prove full remote management. The remaining release blockers are:
 

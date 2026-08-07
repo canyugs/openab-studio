@@ -25,6 +25,8 @@ jobs:
     env:
       APP_BUNDLE_ID: dev.openab.studio
       COCOAPODS_VERSION: 1.16.2
+      SCREENSHOT_ASSERTION_ATTEMPTS: 12
+      SCREENSHOT_ASSERTION_INTERVAL_SECONDS: 5
     steps:
       - name: Check out the repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -227,8 +229,95 @@ jobs:
             exit 1
           fi
           printf '%s\n' "${APP_PATH}" | tee evidence/iphone-app-path.txt
-          sleep 10
-          xcrun simctl io "${IPHONE_UDID}" screenshot evidence/iphone-foreground.png
+
+          launch_application() {
+            local label="$1"
+            local udid="$2"
+            local launch_log="$3"
+            xcrun simctl launch --terminate-running-process "${udid}" "${APP_BUNDLE_ID}" \
+              | tee "${launch_log}"
+            LAUNCHED_PID="$(sed -n "s/^${APP_BUNDLE_ID}: //p" "${launch_log}" | tail -n 1)"
+            if ! [[ "${LAUNCHED_PID}" =~ ^[0-9]+$ ]]; then
+              echo "${label} launch did not report an app PID" >&2
+              return 1
+            fi
+          }
+
+          assert_typed_seam() {
+            local label="$1"
+            local udid="$2"
+            local app_pid="$3"
+            local screenshot="$4"
+            local stem="${screenshot%.png}"
+            local ocr_log="${stem}.ocr.txt"
+            local process_log="${stem}.process.txt"
+            local attempt
+
+            for attempt in $(seq 1 "${SCREENSHOT_ASSERTION_ATTEMPTS}"); do
+              printf '%s attempt=%s pid=%s at_utc=%s\n' \
+                "${label}" "${attempt}" "${app_pid}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                | tee -a "${ocr_log}"
+              if ! xcrun simctl spawn "${udid}" /bin/kill -0 "${app_pid}" 2>&1 \
+                | tee -a "${process_log}"; then
+                echo "${label} app process exited before its typed seam became visible" \
+                  | tee -a "${ocr_log}" >&2
+                return 1
+              fi
+              xcrun simctl io "${udid}" screenshot "${screenshot}"
+              if swift - "${screenshot}" "Trusted core ready" <<'SWIFT' 2>&1 | tee -a "${ocr_log}"
+          import AppKit
+          import Foundation
+          import Vision
+
+          let arguments = CommandLine.arguments
+          precondition(arguments.count == 3, "usage: ocr <image> <expected-text>")
+          let imageURL = URL(fileURLWithPath: arguments[1])
+          let expectedText = arguments[2].lowercased()
+          guard let image = NSImage(contentsOf: imageURL),
+                let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            fputs("could not decode \(imageURL.path)\n", stderr)
+            exit(2)
+          }
+          let request = VNRecognizeTextRequest()
+          request.recognitionLevel = .accurate
+          request.usesLanguageCorrection = true
+          let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+          do {
+            try handler.perform([request])
+          } catch {
+            fputs("OCR failed: \(error)\n", stderr)
+            exit(2)
+          }
+          let recognized = (request.results ?? [])
+            .compactMap { $0.topCandidates(1).first?.string }
+            .joined(separator: "\n")
+          print(recognized)
+          if !recognized.lowercased().contains(expectedText) {
+            fputs("Expected OCR text not found: \(arguments[2])\n", stderr)
+            exit(1)
+          }
+          SWIFT
+              then
+                printf '%s assertion=passed attempt=%s\n' "${label}" "${attempt}" \
+                  | tee -a "${ocr_log}"
+                return 0
+              fi
+              if test "${attempt}" -lt "${SCREENSHOT_ASSERTION_ATTEMPTS}"; then
+                sleep "${SCREENSHOT_ASSERTION_INTERVAL_SECONDS}"
+              fi
+            done
+
+            echo "${label} never displayed the expected typed-seam text" | tee -a "${ocr_log}" >&2
+            return 1
+          }
+
+          launch_application "iPhone foreground" "${IPHONE_UDID}" evidence/iphone-foreground-launch.txt
+          IPHONE_FOREGROUND_PID="${LAUNCHED_PID}"
+          assert_typed_seam \
+            "iPhone foreground" \
+            "${IPHONE_UDID}" \
+            "${IPHONE_FOREGROUND_PID}" \
+            evidence/iphone-foreground.png
 
           APP_EXECUTABLE="$(plutil -extract CFBundleExecutable raw -o - "${APP_PATH}/Info.plist")"
           plutil -p "${APP_PATH}/Info.plist" | tee evidence/app-info-plist.txt
@@ -239,19 +328,31 @@ jobs:
           } | tee evidence/app-binary-architecture.txt
 
           xcrun simctl install "${IPAD_UDID}" "${APP_PATH}"
-          xcrun simctl launch "${IPAD_UDID}" "${APP_BUNDLE_ID}" \
-            | tee evidence/ipad-foreground-launch.txt
-          sleep 10
-          xcrun simctl io "${IPAD_UDID}" screenshot evidence/ipad-foreground.png
+          launch_application "iPad foreground" "${IPAD_UDID}" evidence/ipad-foreground-launch.txt
+          IPAD_FOREGROUND_PID="${LAUNCHED_PID}"
+          assert_typed_seam \
+            "iPad foreground" \
+            "${IPAD_UDID}" \
+            "${IPAD_FOREGROUND_PID}" \
+            evidence/ipad-foreground.png
 
           {
             date -u +"terminate_requested_at_utc=%Y-%m-%dT%H:%M:%SZ"
             xcrun simctl terminate "${IPHONE_UDID}" "${APP_BUNDLE_ID}"
             date -u +"cold_relaunch_requested_at_utc=%Y-%m-%dT%H:%M:%SZ"
-            xcrun simctl launch "${IPHONE_UDID}" "${APP_BUNDLE_ID}"
           } | tee evidence/iphone-termination-relaunch.txt
-          sleep 10
-          xcrun simctl io "${IPHONE_UDID}" screenshot evidence/iphone-cold-relaunch.png
+          launch_application \
+            "iPhone cold relaunch" \
+            "${IPHONE_UDID}" \
+            evidence/iphone-cold-relaunch-launch.txt
+          IPHONE_COLD_RELAUNCH_PID="${LAUNCHED_PID}"
+          printf 'cold_relaunch_pid=%s\n' "${IPHONE_COLD_RELAUNCH_PID}" \
+            | tee -a evidence/iphone-termination-relaunch.txt
+          assert_typed_seam \
+            "iPhone cold relaunch" \
+            "${IPHONE_UDID}" \
+            "${IPHONE_COLD_RELAUNCH_PID}" \
+            evidence/iphone-cold-relaunch.png
 
       - name: Capture simulator diagnostics
         if: always()

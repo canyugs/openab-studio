@@ -207,6 +207,16 @@ jobs:
           cleanup() {
             if kill -0 "${TAURI_IOS_DEV_PID}" 2>/dev/null; then
               kill "${TAURI_IOS_DEV_PID}" || true
+              for _ in $(seq 1 15); do
+                if ! kill -0 "${TAURI_IOS_DEV_PID}" 2>/dev/null; then
+                  break
+                fi
+                sleep 1
+              done
+              if kill -0 "${TAURI_IOS_DEV_PID}" 2>/dev/null; then
+                echo "tauri ios dev did not exit after SIGTERM; sending SIGKILL" >&2
+                kill -KILL "${TAURI_IOS_DEV_PID}" || true
+              fi
               wait "${TAURI_IOS_DEV_PID}" || true
             fi
           }

@@ -1,0 +1,10 @@
+[package]
+name = "studio-core"
+description = "Trusted OpenAB Studio core bootstrap seam"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+serde.workspace = true

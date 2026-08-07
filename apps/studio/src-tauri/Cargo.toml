@@ -15,4 +15,5 @@ tauri-build.workspace = true
 
 [dependencies]
 studio-core = { path = "../../../crates/studio-core" }
+studio-protocol = { path = "../../../crates/studio-protocol" }
 tauri.workspace = true

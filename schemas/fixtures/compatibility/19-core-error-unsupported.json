@@ -1,0 +1,13 @@
+{
+  "kind": "roundtrip",
+  "name": "unsupported-core-error-round-trips",
+  "definition": "CoreErrorEnvelope",
+  "knownExtensions": [],
+  "input": {
+    "category": "unsupported",
+    "code": "core.command.unsupported",
+    "message": "The operation is not supported.",
+    "requestId": "req_error_unsupported",
+    "retryable": false
+  }
+}

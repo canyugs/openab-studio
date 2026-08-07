@@ -1,0 +1,14 @@
+{
+  "kind": "roundtrip",
+  "name": "internal-core-error-round-trips-without-private-detail",
+  "definition": "CoreErrorEnvelope",
+  "knownExtensions": [],
+  "input": {
+    "category": "internal",
+    "code": "core.internal.failure",
+    "message": "The operation failed internally.",
+    "requestId": "req_error_internal",
+    "operationId": "op_error_internal",
+    "retryable": false
+  }
+}

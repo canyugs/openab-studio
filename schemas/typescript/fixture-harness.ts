@@ -3,9 +3,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  parseCoreErrorEnvelope,
   parseCompatibilityPeer,
   parseCompatibilityRequest,
   parseSharedContractDocument,
+  parseWorkspaceBootstrapResult,
 } from "../generated/typescript/studio-protocol.js";
 import { decideCompatibility } from "./compatibility.js";
 import {
@@ -62,10 +64,24 @@ function runCompatibilityFixture(fixture: JsonRecord): void {
       return;
     }
     case "roundtrip": {
+      const definition = requiredString(fixture, "definition");
       const knownExtensions = stringArray(fixture.knownExtensions);
-      const parsed = parseSharedContractDocument(fixture.input, {
-        knownExtensions,
-      });
+      const parsed = (() => {
+        switch (definition) {
+          case "SharedContractDocument":
+            return parseSharedContractDocument(fixture.input, {
+              knownExtensions,
+            });
+          case "WorkspaceBootstrapResult":
+            return parseWorkspaceBootstrapResult(fixture.input, {
+              knownExtensions,
+            });
+          case "CoreErrorEnvelope":
+            return parseCoreErrorEnvelope(fixture.input, { knownExtensions });
+          default:
+            throw new Error(`Unsupported round-trip definition: ${definition}`);
+        }
+      })();
       const reparsed = JSON.parse(JSON.stringify(parsed)) as unknown;
       assert.deepStrictEqual(
         canonicalize(reparsed),

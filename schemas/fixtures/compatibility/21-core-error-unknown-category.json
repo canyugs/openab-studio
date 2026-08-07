@@ -1,0 +1,17 @@
+{
+  "kind": "validation",
+  "name": "unknown-core-error-category-fails-closed",
+  "definition": "CoreErrorEnvelope",
+  "knownExtensions": [],
+  "input": {
+    "category": "surprise",
+    "code": "core.unknown",
+    "message": "Unknown.",
+    "requestId": "req_error_unknown",
+    "retryable": false
+  },
+  "expect": {
+    "valid": false,
+    "code": "schema-enum-mismatch"
+  }
+}

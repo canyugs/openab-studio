@@ -1,0 +1,13 @@
+{
+  "kind": "roundtrip",
+  "name": "invalid-input-core-error-round-trips",
+  "definition": "CoreErrorEnvelope",
+  "knownExtensions": [],
+  "input": {
+    "category": "invalid-input",
+    "code": "core.request.invalid",
+    "message": "The request is invalid.",
+    "requestId": "req_error_invalid",
+    "retryable": false
+  }
+}

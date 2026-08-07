@@ -1,0 +1,14 @@
+{
+  "kind": "roundtrip",
+  "name": "unavailable-core-error-round-trips",
+  "definition": "CoreErrorEnvelope",
+  "knownExtensions": [],
+  "input": {
+    "category": "unavailable",
+    "code": "core.transport.unavailable",
+    "message": "The requested service is unavailable.",
+    "requestId": "req_error_unavailable",
+    "operationId": "op_error_unavailable",
+    "retryable": true
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "kind": "roundtrip",
+  "name": "workspace-bootstrap-result-round-trips-with-correlated-event",
+  "definition": "WorkspaceBootstrapResult",
+  "knownExtensions": [],
+  "input": {
+    "requestId": "req_fixture_bootstrap",
+    "operationId": "op_0000000000000001",
+    "events": [
+      {
+        "eventType": "operation-completed",
+        "commandKind": "workspace-bootstrap",
+        "requestId": "req_fixture_bootstrap",
+        "operationId": "op_0000000000000001",
+        "sequence": 1,
+        "outcome": "succeeded"
+      }
+    ],
+    "workspaceBootstrap": {
+      "protocolVersion": 1,
+      "status": "ready"
+    }
+  }
+}

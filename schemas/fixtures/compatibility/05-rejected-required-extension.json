@@ -1,0 +1,51 @@
+{
+  "kind": "compatibility",
+  "name": "rejected-required-extension-unavailable",
+  "request": {
+    "contracts": [
+      {
+        "family": "studio.openab.dev/plugin-manifest",
+        "major": 1,
+        "minMinor": 0,
+        "maxMinor": 0
+      }
+    ],
+    "requiredCapabilities": [
+      "studio.openab.dev/plugin/mcp-http"
+    ],
+    "optionalCapabilities": [],
+    "requiredExtensions": [
+      "io.example.encrypted-state"
+    ]
+  },
+  "peer": {
+    "contracts": [
+      {
+        "family": "studio.openab.dev/plugin-manifest",
+        "major": 1,
+        "minMinor": 0,
+        "maxMinor": 0
+      }
+    ],
+    "capabilities": [
+      "studio.openab.dev/plugin/mcp-http"
+    ],
+    "extensions": []
+  },
+  "expect": {
+    "outcome": "rejected",
+    "reason": "required-extension-unavailable",
+    "selectedContracts": [
+      {
+        "family": "studio.openab.dev/plugin-manifest",
+        "major": 1,
+        "minor": 0
+      }
+    ],
+    "acceptedCapabilities": [
+      "studio.openab.dev/plugin/mcp-http"
+    ],
+    "unavailableCapabilities": [],
+    "sideEffectPermitted": false
+  }
+}

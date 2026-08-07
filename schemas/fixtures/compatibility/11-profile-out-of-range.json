@@ -1,0 +1,16 @@
+{
+  "kind": "validation",
+  "name": "schema-profile-integers-stay-within-cross-language-safe-range",
+  "definition": "SchemaProfile",
+  "knownExtensions": [],
+  "input": {
+    "family": "studio.openab.dev/fleet-management",
+    "major": 2147483648,
+    "minMinor": 0,
+    "maxMinor": 0
+  },
+  "expect": {
+    "valid": false,
+    "code": "schema-maximum"
+  }
+}

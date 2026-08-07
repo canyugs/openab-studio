@@ -1,0 +1,36 @@
+{
+  "kind": "compatibility",
+  "name": "rejected-major-mismatch",
+  "request": {
+    "contracts": [
+      {
+        "family": "studio.openab.dev/fleet-management",
+        "major": 1,
+        "minMinor": 2,
+        "maxMinor": 4
+      }
+    ],
+    "requiredCapabilities": [],
+    "optionalCapabilities": []
+  },
+  "peer": {
+    "contracts": [
+      {
+        "family": "studio.openab.dev/fleet-management",
+        "major": 2,
+        "minMinor": 0,
+        "maxMinor": 1
+      }
+    ],
+    "capabilities": [],
+    "extensions": []
+  },
+  "expect": {
+    "outcome": "rejected",
+    "reason": "schema-major-mismatch",
+    "selectedContracts": [],
+    "acceptedCapabilities": [],
+    "unavailableCapabilities": [],
+    "sideEffectPermitted": false
+  }
+}

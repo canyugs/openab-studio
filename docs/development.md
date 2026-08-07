@@ -43,6 +43,29 @@ pnpm build
 performs a host Rust check and TypeScript check. `pnpm build` additionally builds the Vite assets and
 the Rust workspace.
 
+## Shared schema workflow
+
+`schemas/studio.shared.v1alpha1.schema.json` is the canonical source for the versioned shared
+Fleet, plugin, memory, grant, capability, and audit contracts. Do not edit bindings under
+`crates/studio-protocol/src/generated.rs` or `schemas/generated/typescript/` by hand.
+
+```sh
+pnpm schemas:generate
+pnpm schemas:check
+pnpm schemas:test:typescript
+pnpm contracts:verify
+```
+
+`schemas:generate` updates the committed Rust and TypeScript output. `schemas:check` regenerates in
+memory and fails when the working tree's generated output does not exactly match both the canonical
+source and generator. `schemas:test:typescript` compiles and runs the TypeScript fixture harness;
+`pnpm test` includes it with the Rust workspace tests. `contracts:verify` is the dedicated
+cross-language compatibility gate: reproducibility, Rust fixtures, then TypeScript fixtures.
+
+The corpus under `schemas/fixtures/` is retained for supported, degraded, rejected, migration, and
+unknown-field/required-extension behavior. Expected rejection fixtures are asserted as successful
+test outcomes; the gate exits nonzero only when either language disagrees with the declared result.
+
 ## Desktop development
 
 ```sh

@@ -59,9 +59,10 @@ is absent, the pinned gem is installed only on that disposable runner. The workf
 
 The uploaded `ios-ipados-lifecycle-evidence-<run-id>` artifact retains the init and launch logs,
 generated-project build settings, selected simulator metadata, app binary architecture, lifecycle
-command output, device diagnostics, screenshots, app-PID probes, and OCR transcripts. Vision runs
-only on the disposable macOS runner; no image leaves the runner. The OCR assertion verifies that
-each final screenshot contains the current TypeScript UI's `workspace_bootstrap` result:
+command output, device diagnostics, screenshots, app-PID probes, and OCR transcripts. Vision OCR
+runs locally on the disposable runner; screenshots are retained in the 14-day GitHub Actions
+artifact and are not sent to any external recognition service. The OCR assertion verifies that each
+final screenshot contains the current TypeScript UI's `workspace_bootstrap` result:
 `Trusted core ready (protocol 1).` It is not a substitute for a broader mobile UI test.
 
 ## Hosted results

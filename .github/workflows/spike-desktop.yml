@@ -1,0 +1,453 @@
+name: Desktop packaging spike
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/spike-desktop.yml"
+      - "apps/studio/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "docs/spikes/desktop-packaging.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-packaging-spike-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-install-launch:
+    name: ${{ matrix.id }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: macos-aarch64
+            runner: macos-15
+            target: aarch64-apple-darwin
+            expected_arch: arm64
+            bundles: app,dmg
+          - id: windows-x86_64
+            runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            expected_arch: AMD64
+            bundles: msi,nsis
+          - id: linux-x86_64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            expected_arch: x86_64
+            bundles: deb,appimage
+    env:
+      BUNDLES: ${{ matrix.bundles }}
+      EVIDENCE_DIR: ${{ runner.temp }}/desktop-packaging-spike/${{ matrix.id }}
+      EXPECTED_ARCH: ${{ matrix.expected_arch }}
+      TARGET: ${{ matrix.target }}
+
+    steps:
+      - name: Initialize Unix evidence directory
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          printf '%s\n' 'This artifact contains ephemeral hosted-runner evidence only.' \
+            > "$EVIDENCE_DIR/README.txt"
+
+      - name: Initialize Windows evidence directory
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:EVIDENCE_DIR | Out-Null
+          'This artifact contains ephemeral hosted-runner evidence only.' |
+            Set-Content -NoNewline -Path (Join-Path $env:EVIDENCE_DIR 'README.txt')
+
+      - name: Reject accidental Unix signing material
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            APPLE_API_ISSUER \
+            APPLE_API_KEY \
+            APPLE_API_KEY_PATH \
+            APPLE_CERTIFICATE \
+            APPLE_CERTIFICATE_PASSWORD \
+            APPLE_ID \
+            APPLE_PASSWORD \
+            APPLE_SIGNING_IDENTITY \
+            APPLE_TEAM_ID \
+            APPIMAGETOOL_SIGN_PASSPHRASE \
+            SIGN \
+            SIGN_KEY \
+            TAURI_SIGNING_PRIVATE_KEY \
+            TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            if test -n "${!name:-}"; then
+              printf '%s\n' "Refusing to run the unsigned spike with $name set." >&2
+              exit 1
+            fi
+          done
+
+      - name: Reject accidental Windows signing material
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $blocked = @(
+            'AZURE_CLIENT_SECRET',
+            'CSC_KEY_PASSWORD',
+            'CSC_LINK',
+            'TAURI_SIGNING_PRIVATE_KEY',
+            'TAURI_SIGNING_PRIVATE_KEY_PASSWORD',
+            'WINDOWS_CERTIFICATE',
+            'WINDOWS_CERTIFICATE_PASSWORD'
+          )
+          foreach ($name in $blocked) {
+            if (-not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($name))) {
+              throw "Refusing to run the unsigned spike with $name set."
+            }
+          }
+
+      - name: Check out the repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Linux Tauri build and launch dependencies
+        if: matrix.id == 'linux-x86_64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            librsvg2-dev \
+            wget \
+            xvfb
+
+      - name: Set up Rust 1.85
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: "1.85"
+
+      - name: Set up Node.js 22.12.0
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.12.0
+          package-manager-cache: false
+
+      - name: Set up pnpm 10.29.2
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.29.2
+          cache: false
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Record Unix runner and toolchain evidence
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_arch="$(uname -m)"
+          case "$EXPECTED_ARCH:$actual_arch" in
+            arm64:arm64 | arm64:aarch64 | x86_64:x86_64 | x86_64:amd64) ;;
+            *)
+              printf '%s\n' "Expected $EXPECTED_ARCH architecture, got $actual_arch." >&2
+              exit 1
+              ;;
+          esac
+          {
+            printf 'runner_os=%s\n' "$RUNNER_OS"
+            printf 'expected_arch=%s\n' "$EXPECTED_ARCH"
+            uname -a
+            uname -m
+            if command -v sw_vers >/dev/null 2>&1; then
+              sw_vers
+            fi
+            rustc -vV
+            node --version
+            pnpm --version
+            pnpm --filter @openab/studio exec tauri --version
+          } > "$EVIDENCE_DIR/runner-and-toolchain.txt"
+
+      - name: Record Windows runner and toolchain evidence
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ($env:PROCESSOR_ARCHITECTURE -ne $env:EXPECTED_ARCH) {
+            throw "Expected $env:EXPECTED_ARCH architecture, got $env:PROCESSOR_ARCHITECTURE."
+          }
+          @(
+            "runner_os=$env:RUNNER_OS"
+            "expected_arch=$env:EXPECTED_ARCH"
+            "processor_architecture=$env:PROCESSOR_ARCHITECTURE"
+            (Get-CimInstance Win32_OperatingSystem | Format-List | Out-String)
+            (rustc -vV | Out-String)
+            (node --version | Out-String)
+            (pnpm --version | Out-String)
+            (pnpm --filter @openab/studio exec tauri --version | Out-String)
+          ) | Set-Content -Path (Join-Path $env:EVIDENCE_DIR 'runner-and-toolchain.txt')
+
+      - name: Build and inspect Unix bundles
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @openab/studio exec tauri build \
+            --target "$TARGET" \
+            --bundles "$BUNDLES" \
+            2>&1 | tee "$EVIDENCE_DIR/build.log"
+
+          bundle_root="$(find "$GITHUB_WORKSPACE" -type d \
+            -path "*/target/${TARGET}/release/bundle" -print -quit)"
+          test -n "$bundle_root"
+
+          case "$RUNNER_OS" in
+            macOS)
+              test -n "$(find "$bundle_root/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
+              test -n "$(find "$bundle_root/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+              ;;
+            Linux)
+              test -n "$(find "$bundle_root/deb" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+              test -n "$(find "$bundle_root/appimage" -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+              ;;
+            *)
+              printf '%s\n' "Unexpected Unix runner OS: $RUNNER_OS" >&2
+              exit 1
+              ;;
+          esac
+
+          printf '%s\n' "$bundle_root" > "$EVIDENCE_DIR/bundle-root.txt"
+          find "$bundle_root" -type f -exec shasum -a 256 {} \; | LC_ALL=C sort \
+            > "$EVIDENCE_DIR/bundle-sha256.txt"
+          find "$bundle_root" -type f -exec ls -lh {} \; | LC_ALL=C sort \
+            > "$EVIDENCE_DIR/bundle-files.txt"
+
+      - name: Build and inspect Windows bundles
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pnpm --filter @openab/studio exec tauri build `
+            --target $env:TARGET `
+            --bundles $env:BUNDLES 2>&1 |
+            Tee-Object -FilePath (Join-Path $env:EVIDENCE_DIR 'build.log')
+          if ($LASTEXITCODE -ne 0) {
+            throw "Tauri build failed with exit code $LASTEXITCODE."
+          }
+
+          $target = [regex]::Escape($env:TARGET)
+          $bundleRoot = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Directory -Recurse -Filter bundle |
+            Where-Object {
+              $_.FullName -match "[\\/]target[\\/]$target[\\/]release[\\/]bundle$"
+            } |
+            Select-Object -First 1
+          if ($null -eq $bundleRoot) {
+            throw "Tauri did not create a bundle directory for $env:TARGET."
+          }
+
+          $msi = Get-ChildItem -Path $bundleRoot.FullName -File -Recurse -Filter '*.msi' |
+            Select-Object -First 1
+          $nsis = Get-ChildItem -Path $bundleRoot.FullName -File -Recurse -Filter '*-setup.exe' |
+            Select-Object -First 1
+          if (($null -eq $msi) -or ($null -eq $nsis)) {
+            throw 'Expected both MSI and NSIS bundles.'
+          }
+
+          $bundleRoot.FullName | Set-Content -NoNewline -Path (Join-Path $env:EVIDENCE_DIR 'bundle-root.txt')
+          Get-ChildItem -Path $bundleRoot.FullName -File -Recurse |
+            Get-FileHash -Algorithm SHA256 |
+            Sort-Object Path |
+            Format-Table -AutoSize |
+            Out-String |
+            Set-Content -Path (Join-Path $env:EVIDENCE_DIR 'bundle-sha256.txt')
+          Get-ChildItem -Path $bundleRoot.FullName -File -Recurse |
+            Sort-Object FullName |
+            Format-Table FullName, Length -AutoSize |
+            Out-String |
+            Set-Content -Path (Join-Path $env:EVIDENCE_DIR 'bundle-files.txt')
+
+      - name: Install and launch the macOS application bundle
+        if: matrix.id == 'macos-aarch64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_root="$(cat "$EVIDENCE_DIR/bundle-root.txt")"
+          app_bundle="$(find "$bundle_root/macos" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app_bundle"
+
+          install_root="$RUNNER_TEMP/desktop-packaging-spike-applications"
+          mkdir -p "$install_root"
+          installed_app="$install_root/$(basename "$app_bundle")"
+          ditto "$app_bundle" "$installed_app"
+          test -d "$installed_app"
+
+          app_binary="$(find "$installed_app/Contents/MacOS" -type f -perm -111 -print -quit)"
+          test -n "$app_binary"
+          printf '%s\n' "$installed_app" > "$EVIDENCE_DIR/install-location.txt"
+          otool -L "$app_binary" > "$EVIDENCE_DIR/executable-dependencies.txt" 2>&1 || true
+          codesign -dv --verbose=4 "$installed_app" > "$EVIDENCE_DIR/codesign.txt" 2>&1 || true
+
+          "$app_binary" > "$EVIDENCE_DIR/launch.stdout.log" 2> "$EVIDENCE_DIR/launch.stderr.log" &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          sleep 10
+          if ! kill -0 "$app_pid" 2>/dev/null; then
+            wait "$app_pid" || true
+            cat "$EVIDENCE_DIR/launch.stderr.log" >&2 || true
+            exit 1
+          fi
+          ps -p "$app_pid" -o pid=,command= > "$EVIDENCE_DIR/launch-process.txt"
+          kill "$app_pid"
+          wait "$app_pid" || true
+          trap - EXIT
+
+      - name: Install and launch the Windows NSIS bundle
+        if: matrix.id == 'windows-x86_64'
+        shell: pwsh
+        run: |
+          $bundleRoot = Get-Content -Raw -Path (Join-Path $env:EVIDENCE_DIR 'bundle-root.txt')
+          $installer = Get-ChildItem -Path $bundleRoot.Trim() -File -Recurse -Filter '*-setup.exe' |
+            Select-Object -First 1
+          if ($null -eq $installer) {
+            throw 'NSIS installer was not found.'
+          }
+
+          $installDirectory = Join-Path $env:RUNNER_TEMP 'desktop-packaging-spike-install'
+          & $installer.FullName /S "/D=$installDirectory" 2>&1 |
+            Tee-Object -FilePath (Join-Path $env:EVIDENCE_DIR 'install.log')
+          if ($LASTEXITCODE -ne 0) {
+            throw "NSIS installation failed with exit code $LASTEXITCODE."
+          }
+
+          $installedExecutable = Get-ChildItem -Path $installDirectory -File -Recurse -Filter '*.exe' |
+            Where-Object { $_.Name -notmatch '^uninstall' } |
+            Select-Object -First 1
+          if ($null -eq $installedExecutable) {
+            throw "No application executable was installed under $installDirectory."
+          }
+          $installDirectory | Set-Content -NoNewline -Path (Join-Path $env:EVIDENCE_DIR 'install-location.txt')
+
+          Get-ChildItem -Path $bundleRoot.Trim() -File -Recurse |
+            Where-Object { $_.Extension -in '.exe', '.msi' } |
+            ForEach-Object {
+              $signature = Get-AuthenticodeSignature -FilePath $_.FullName
+              [pscustomobject]@{
+                Path = $_.FullName
+                Status = $signature.Status
+                StatusMessage = $signature.StatusMessage
+                Signer = $signature.SignerCertificate.Subject
+              }
+            } |
+            ConvertTo-Json -Depth 3 |
+            Set-Content -Path (Join-Path $env:EVIDENCE_DIR 'authenticode.json')
+
+          $webViewRoots = @(
+            'HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients'
+          )
+          $webViewEntries = foreach ($root in $webViewRoots) {
+            if (Test-Path $root) {
+              Get-ChildItem -Path $root | ForEach-Object {
+                $name = $_.GetValue('name')
+                if ($name -like '*WebView2*') {
+                  [pscustomobject]@{
+                    Key = $_.Name
+                    Name = $name
+                    Version = $_.GetValue('pv')
+                  }
+                }
+              }
+            }
+          }
+          $webViewEntries |
+            ConvertTo-Json -Depth 3 |
+            Set-Content -Path (Join-Path $env:EVIDENCE_DIR 'webview2-runtime.json')
+
+          $startProcess = @{
+            FilePath = $installedExecutable.FullName
+            PassThru = $true
+            RedirectStandardOutput = Join-Path $env:EVIDENCE_DIR 'launch.stdout.log'
+            RedirectStandardError = Join-Path $env:EVIDENCE_DIR 'launch.stderr.log'
+          }
+          $process = Start-Process @startProcess
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) {
+            Get-Content -Path (Join-Path $env:EVIDENCE_DIR 'launch.stderr.log') -ErrorAction SilentlyContinue
+            throw "Installed application exited during the launch-liveness window with code $($process.ExitCode)."
+          }
+          Get-Process -Id $process.Id |
+            Format-List Id, ProcessName, Path, StartTime |
+            Out-String |
+            Set-Content -Path (Join-Path $env:EVIDENCE_DIR 'launch-process.txt')
+          Stop-Process -Id $process.Id -Force
+          Wait-Process -Id $process.Id -ErrorAction SilentlyContinue
+
+      - name: Install and launch the Linux Debian package
+        if: matrix.id == 'linux-x86_64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_root="$(cat "$EVIDENCE_DIR/bundle-root.txt")"
+          deb_package="$(find "$bundle_root/deb" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$deb_package"
+
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends --yes \
+            "$deb_package" 2>&1 | tee "$EVIDENCE_DIR/install.log"
+          package_name="$(dpkg-deb --field "$deb_package" Package)"
+          dpkg -L "$package_name" > "$EVIDENCE_DIR/installed-files.txt"
+          app_binary="$(
+            dpkg -L "$package_name" | while IFS= read -r candidate; do
+              if test -f "$candidate" && test -x "$candidate"; then
+                printf '%s\n' "$candidate"
+                break
+              fi
+            done
+          )"
+          test -n "$app_binary"
+          printf '%s\n' "$app_binary" > "$EVIDENCE_DIR/install-location.txt"
+
+          dpkg-query -W -f='${binary:Package} ${Version}\n' \
+            libgtk-3-0 \
+            libwebkit2gtk-4.1-0 > "$EVIDENCE_DIR/webview-runtime.txt" 2>&1 || true
+          ldd "$app_binary" > "$EVIDENCE_DIR/executable-dependencies.txt" 2>&1 || true
+
+          xvfb-run -a "$app_binary" \
+            > "$EVIDENCE_DIR/launch.stdout.log" \
+            2> "$EVIDENCE_DIR/launch.stderr.log" &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          sleep 10
+          if ! kill -0 "$app_pid" 2>/dev/null; then
+            wait "$app_pid" || true
+            cat "$EVIDENCE_DIR/launch.stderr.log" >&2 || true
+            exit 1
+          fi
+          ps -p "$app_pid" -o pid=,command= > "$EVIDENCE_DIR/launch-process.txt"
+          kill "$app_pid"
+          wait "$app_pid" || true
+          trap - EXIT
+
+      - name: Upload desktop spike evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-packaging-spike-${{ matrix.id }}
+          path: |
+            ${{ runner.temp }}/desktop-packaging-spike/${{ matrix.id }}
+            target/${{ matrix.target }}/release/bundle
+            apps/studio/src-tauri/target/${{ matrix.target }}/release/bundle
+          if-no-files-found: error
+          retention-days: 7

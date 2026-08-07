@@ -22,11 +22,12 @@ on 2026-08-07. They are exact pins; update them deliberately with both lockfiles
 | TypeScript | 7.0.2 |
 | pnpm | 10.29.2 |
 
-Node.js must satisfy Vite's `^20.19.0 || >=22.12.0` engine range. Enable Corepack before the first
-install if pnpm is not already available:
+Node.js must satisfy Vite's `^20.19.0 || >=22.12.0` engine range. Ensure pnpm 10.29.2 is available
+before the first install. The Node 22.12.0-bundled Corepack cannot currently verify that release's
+signing key, so use an approved local pnpm installation rather than relying on that Corepack version:
 
 ```sh
-corepack enable
+pnpm --version # expected: 10.29.2
 pnpm install --frozen-lockfile
 ```
 
@@ -75,6 +76,38 @@ source or generator.
 The corpus under `schemas/fixtures/` is retained for supported, degraded, rejected, migration, and
 unknown-field/required-extension behavior. Expected rejection fixtures are asserted as successful
 test outcomes; the gate exits nonzero only when either language disagrees with the declared result.
+
+## CI quality gates
+
+[`CI`](../.github/workflows/ci.yml) runs for pull requests and pushes to `main`. It installs the
+pinned pnpm release through `pnpm/action-setup` v6.0.10, pinned by commit SHA, with caching disabled.
+Node 22.12.0's bundled Corepack cannot verify pnpm 10.29.2's current signing key, so CI does not
+depend on that runner metadata. When reproducing a Node-backed gate locally, first ensure pnpm
+10.29.2 is available and then install locked dependencies:
+
+```sh
+pnpm --version # expected: 10.29.2
+pnpm install --frozen-lockfile
+```
+
+| CI job | Local reproduction | Scope |
+|---|---|---|
+| Formatting | `pnpm format:check` | Rust `cargo fmt` plus Prettier for schema TS/MJS and the Studio UI. |
+| Static analysis | `cargo clippy --workspace --all-targets --locked -- -D warnings` followed by `pnpm check` | Rust Clippy and check, plus TypeScript `tsc --noEmit`. |
+| Unit tests | `pnpm test` | Workspace Rust tests and `pnpm schemas:test:typescript`. |
+| Template validation | `sh scripts/validate-templates.sh` | Issue forms, pull-request template, dry-run fixtures, and guidance links. |
+| Contract compatibility fixtures | `pnpm contracts:verify` | Regenerated-source clean-diff check and the Rust/TypeScript compatibility corpus. |
+
+Every command above must exit zero. For a controlled failure check, use a disposable worktree, make
+one temporary relevant source, template, generated-output, or fixture change, confirm that its row's
+command exits nonzero with the named failure, then remove the worktree without committing the change.
+The compatibility corpus deliberately contains invalid inputs whose expected rejection is asserted;
+those fixtures make the normal contract command pass rather than serving as failure probes.
+
+The workflow uses an Ubuntu 24.04 runner only to exercise these source-level checks. It performs no
+packaging, signing, deployment, device, or non-Linux platform validation, so it is not evidence of
+desktop/mobile release coverage. It has read-only repository permission, persists no checkout
+credentials, uses no GitHub Actions dependency cache, and reads no repository or deployment secret.
 
 ## Desktop development
 
